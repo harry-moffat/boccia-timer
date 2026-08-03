@@ -20,17 +20,21 @@ right brings them back.
 
 ### From the Dock (macOS)
 
-`BocciaTimer.app` in this folder is a small launcher bundle. Its
-`Contents/MacOS/launcher` script opens `bocciatimer.html` in a dedicated
-chromeless Chrome window (`--app=file://…`, with its own Chrome profile under
-`~/Library/Application Support/BocciaTimer/`, so it never disturbs your normal
-browsing session). If Chrome isn't installed it falls back to the default
-browser.
+`BocciaTimer.app` in this folder is a small native app (source:
+`launcher.swift`, ~190 KB universal binary, committed to the repo) that shows
+`bocciatimer.html` in its own window using macOS's built-in WebKit engine. No
+browser is involved: it appears in Cmd-Tab and the Dock as **BocciaTimer**
+with its own icon, Cmd-Q quits it, Cmd-R reloads, and ⌃⌘F (or the page's
+**F** key) goes fullscreen. Requires macOS 12.3+.
 
 It finds the HTML **relative to itself** rather than by absolute path, so the
 folder can be moved, renamed or cloned onto another Mac and the app still opens
 the right file — as long as `BocciaTimer.app` stays next to
 `bocciatimer.html`. Move the app out on its own and it shows an alert instead.
+
+Match state saves into the app's own WebKit storage — separate from every
+browser. A match started in the app won't appear if you open the HTML in
+Chrome or Safari, and vice versa.
 
 To pin it: drag `BocciaTimer.app` onto the Dock. If you later move the folder,
 the existing Dock tile still points at the old location — drag it in again from
@@ -40,6 +44,18 @@ Note for other machines: `git clone` leaves the bundle runnable, but a ZIP
 downloaded from GitHub gets quarantined and Gatekeeper will refuse to open an
 unsigned app. Clone the repo rather than downloading it, or clear the flag with
 `xattr -dr com.apple.quarantine BocciaTimer.app`.
+
+After editing `launcher.swift`, rebuild the binary into the bundle
+(add a second `-target x86_64-apple-macos12.3` build plus `lipo -create` to
+keep it universal):
+
+```bash
+xcrun swiftc -O -parse-as-library launcher.swift -o BocciaTimer.app/Contents/MacOS/launcher -target arm64-apple-macos12.3 -framework Cocoa -framework WebKit && codesign --force -s - BocciaTimer.app
+```
+
+`BocciaTimer.app/Contents/MacOS/launcher --probe` prints a one-line JSON
+health report (localStorage, audio cues, fullscreen, app state) and exits —
+run it twice to confirm storage persists between launches.
 
 The bundle's icon is built from `logo.svg` (see **Logo** below).
 

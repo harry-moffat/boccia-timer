@@ -8,7 +8,9 @@ One file, `bocciatimer.html` (~1090 lines): inline `<style>`, inline `<script>` 
 
 `logo.svg` is the master artwork; every PNG in the folder is rendered from it (see README).
 
-`BocciaTimer.app` is a Dock launcher that opens this folder's HTML in a chromeless Chrome window. It is committed to the repo, and its `Contents/MacOS/launcher` resolves the folder from its own location (`${0:A:h}` then three `:h`) rather than hardcoding a path — that is what makes the repo relocatable, so don't replace it with an absolute path. Note the executable bit on `launcher` is part of the commit (mode 100755); if it is ever lost the app fails to launch with no visible error. Rebuild its icon with `iconutil -c icns` when the artwork changes.
+`BocciaTimer.app` is a native Dock launcher — a WKWebView window around this folder's HTML, compiled from `launcher.swift` (build command in the README; the universal binary is committed). It resolves the HTML from the bundle's own location rather than a hardcoded path — that is what makes the repo relocatable, so don't replace it with an absolute path. The executable bit on `Contents/MacOS/launcher` is part of the commit (mode 100755); if it is ever lost the app fails to launch with no visible error. Rebuild its icon with `iconutil -c icns` when the artwork changes.
+
+After touching `launcher.swift` or the HTML's storage/audio/fullscreen behaviour, verify with `BocciaTimer.app/Contents/MacOS/launcher --probe` (twice — the second run's `persistPrev:"yes"` proves localStorage survives relaunch). The launcher needs `isElementFullscreenEnabled` (the page's F key uses `requestFullscreen`) and `mediaTypesRequiringUserActionForPlayback = []` (the cue sounds fire without a gesture); don't drop either when editing it.
 
 Almost every change lands in that one file. There is nothing to build, lint or transpile.
 
@@ -20,7 +22,7 @@ Almost every change lands in that one file. There is nothing to build, lint or t
 python3 -m http.server 8777
 ```
 
-Prefer HTTP for development. `file://` also works in current Chrome — verified on 150.0.7871.187: all three `.wav` cues reach `loadeddata`, `localStorage` reads and writes, no console errors — which is what the Dock launcher relies on. Don't assume that holds in every browser; if audio goes silent when opened directly, serve over HTTP before debugging anything else.
+Prefer HTTP for development. `file://` also works in current Chrome (verified on 150: cues load, `localStorage` works, no console errors) and in the Dock launcher's WKWebView (verified via `--probe`). Don't assume that holds in every browser; if audio goes silent when opened directly, serve over HTTP before debugging anything else.
 
 ## Verifying changes
 
