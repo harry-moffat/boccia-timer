@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project shape
 
-One file, `bocciatimer.html` (~1090 lines): inline `<style>`, inline `<script>` (`"use strict"`, vanilla ES6), no framework, no build step, no dependencies, no tests. The only external assets are `1minute.wav`, `30seconds.wav` and `timeup.wav`, loaded by relative path. Keep it that way — "self-contained" is the point, since this runs from a laptop at competition venues.
+One file, `bocciatimer.html` (~1090 lines): inline `<style>`, inline `<script>` (`"use strict"`, vanilla ES6), no framework, no build step, no dependencies, no tests. The only external assets are `1minute.wav`, `30seconds.wav` and `timeup.wav`, loaded by relative path, plus the favicons (`favicon-16.png`, `favicon-32.png`, `apple-touch-icon.png`) — cosmetic only, the page works without them. Keep it that way — "self-contained" is the point, since this runs from a laptop at competition venues.
+
+`logo.svg` is the master artwork; every PNG in the folder is rendered from it (see README). `/Applications/BocciaTimer.app` — a Dock launcher that opens this folder's HTML in a chromeless Chrome window — lives outside the repo and hardcodes the folder path, so moving this directory means editing `Contents/MacOS/launcher` inside that bundle.
 
 Almost every change lands in that one file. There is nothing to build, lint or transpile.
 
@@ -16,7 +18,7 @@ Almost every change lands in that one file. There is nothing to build, lint or t
 python3 -m http.server 8777
 ```
 
-Serve over HTTP rather than opening via `file://` — the audio cues fail to load otherwise.
+Prefer HTTP for development. `file://` also works in current Chrome — verified on 150.0.7871.187: all three `.wav` cues reach `loadeddata`, `localStorage` reads and writes, no console errors — which is what the Dock launcher relies on. Don't assume that holds in every browser; if audio goes silent when opened directly, serve over HTTP before debugging anything else.
 
 ## Verifying changes
 

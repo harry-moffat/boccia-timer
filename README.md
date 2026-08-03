@@ -18,6 +18,38 @@ Press **F** for fullscreen, which also switches to presentation mode (setup
 controls hidden). **H** toggles the controls on their own; the gear in the top
 right brings them back.
 
+### From the Dock (macOS)
+
+`/Applications/BocciaTimer.app` is a small launcher bundle — it isn't part of
+this repo. Its `Contents/MacOS/launcher` script opens this folder's
+`bocciatimer.html` in a dedicated chromeless Chrome window
+(`--app=file://…`, with its own Chrome profile under
+`~/Library/Application Support/BocciaTimer/`). Edit the `TIMER` path in that
+script if this folder ever moves; the launcher shows an alert if the file has
+gone missing, and falls back to the default browser if Chrome isn't installed.
+
+The bundle's icon is built from `logo.svg` (see **Logo** below).
+
+## Logo
+
+`logo.svg` is the master artwork: a clock face split red / blue like the two
+player panels, yellow ring and hands, boccia-green quarter marks, on the white
+tile the other Boccia Australia apps use. The PNGs beside it
+(`favicon-16`, `favicon-32`, `apple-touch-icon`, `icon-192`, `icon-512`,
+`logo-1024`) are rendered from it, and the first three are referenced from the
+HTML `<head>`.
+
+To regenerate them after editing the SVG, render at 1024 and downscale:
+
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless \
+  --default-background-color=00000000 --window-size=1024,1024 \
+  --screenshot=logo-1024.png logo.svg
+```
+
+then `sips -z <size> <size>` for each size, and `iconutil -c icns` over an
+`AppIcon.iconset` for the Dock app's `.icns`.
+
 ## Controls
 
 | Key / button | Action |
