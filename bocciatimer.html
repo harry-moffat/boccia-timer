@@ -58,6 +58,7 @@
   }
   #tiebreak { width: 15px; height: 15px; accent-color: #ffea00; }
   #controls button { font-size: 13px; padding: 4px 9px; }
+  #resetall.armed { background: #ffea00; color: #000; border-color: #ffea00; }
   /* the shortcut hint is the first thing to go when space is tight */
   @media (max-width: 1250px) { #hint { display: none; } }
   #controls input[type=number] {
@@ -412,6 +413,7 @@
     <button id="resettimes">Reset Times</button>
     <button id="resetscores">Reset Scores</button>
     <button id="resetends">Reset Ends</button>
+    <button id="resetall">Reset All</button>
     <button id="newend">New End</button>
     <span class="spacer"></span>
     <span id="hint">R/B = clocks · F = fullscreen · H = hide controls</span>
@@ -773,6 +775,34 @@ $('resetscores').addEventListener('click', () => {
   persistMatch();
 });
 $('resetends').addEventListener('click', () => { state.end = 1; autoTiebreak(); renderScores(); persistMatch(); });
+
+// Reset All = new match: two-step click so one stray click can't wipe a match.
+let resetAllTimer = 0;
+function disarmResetAll() {
+  clearTimeout(resetAllTimer);
+  const b = $('resetall');
+  b.classList.remove('armed');
+  b.textContent = 'Reset All';
+}
+$('resetall').addEventListener('click', () => {
+  const b = $('resetall');
+  if (!b.classList.contains('armed')) {
+    b.classList.add('armed');
+    b.textContent = 'Sure? Reset All';
+    resetAllTimer = setTimeout(disarmResetAll, 3000);
+    return;
+  }
+  disarmResetAll();
+  closeOverlays();
+  state.red = state.blue = 0;
+  state.ends = [];
+  state.end = 1;
+  autoTiebreak();
+  newEnd();
+  resetClocks();
+  renderScores();
+  persistMatch();
+});
 
 /* ================= End complete ================= */
 

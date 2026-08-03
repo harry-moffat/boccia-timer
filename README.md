@@ -89,6 +89,7 @@ then `sips -z <size> <size>` for each size, and `iconutil -c icns` over an
 | **End Complete** | Enter the end's score, bank it, and reset the clocks |
 | **Match Done** | Final score card with the end-by-end breakdown |
 | **Undo ball** | Remove the last counted ball |
+| **Reset All** | Click twice: full new match — clocks, scores, end number, throw dots |
 
 Starting a player's clock pauses the other side, and stopping a clock counts
 that side's ball automatically. The first throw of each end is the jack and is
@@ -105,4 +106,6 @@ decides the winner, shown as a bullet on the final card.
 
 Player names, countries, game time and the current match (scores, end number,
 per-end history) persist in `localStorage`, so a refresh mid-match is safe.
-**Reset Scores** clears the match and starts a new one.
+**Reset All** (click twice — the first click arms it) starts a new match:
+clocks back to full time, scores, end number and throw dots cleared. The
+individual **Reset Times / Scores / Ends** buttons reset just their own piece.
