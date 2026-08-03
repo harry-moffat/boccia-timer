@@ -20,13 +20,26 @@ right brings them back.
 
 ### From the Dock (macOS)
 
-`/Applications/BocciaTimer.app` is a small launcher bundle — it isn't part of
-this repo. Its `Contents/MacOS/launcher` script opens this folder's
-`bocciatimer.html` in a dedicated chromeless Chrome window
-(`--app=file://…`, with its own Chrome profile under
-`~/Library/Application Support/BocciaTimer/`). Edit the `TIMER` path in that
-script if this folder ever moves; the launcher shows an alert if the file has
-gone missing, and falls back to the default browser if Chrome isn't installed.
+`BocciaTimer.app` in this folder is a small launcher bundle. Its
+`Contents/MacOS/launcher` script opens `bocciatimer.html` in a dedicated
+chromeless Chrome window (`--app=file://…`, with its own Chrome profile under
+`~/Library/Application Support/BocciaTimer/`, so it never disturbs your normal
+browsing session). If Chrome isn't installed it falls back to the default
+browser.
+
+It finds the HTML **relative to itself** rather than by absolute path, so the
+folder can be moved, renamed or cloned onto another Mac and the app still opens
+the right file — as long as `BocciaTimer.app` stays next to
+`bocciatimer.html`. Move the app out on its own and it shows an alert instead.
+
+To pin it: drag `BocciaTimer.app` onto the Dock. If you later move the folder,
+the existing Dock tile still points at the old location — drag it in again from
+the new one.
+
+Note for other machines: `git clone` leaves the bundle runnable, but a ZIP
+downloaded from GitHub gets quarantined and Gatekeeper will refuse to open an
+unsigned app. Clone the repo rather than downloading it, or clear the flag with
+`xattr -dr com.apple.quarantine BocciaTimer.app`.
 
 The bundle's icon is built from `logo.svg` (see **Logo** below).
 

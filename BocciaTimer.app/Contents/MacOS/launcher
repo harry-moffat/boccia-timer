@@ -1,0 +1,27 @@
+#!/bin/zsh
+# Opens the Boccia Match Timer in a dedicated, chromeless Chrome window.
+#
+# This bundle lives inside the boccia-timer repo and finds the HTML relative to
+# itself, so the whole folder can be moved or cloned anywhere and still work.
+# Keep BocciaTimer.app sitting next to bocciatimer.html.
+
+HERE="${0:A:h}"                # .../BocciaTimer.app/Contents/MacOS
+FOLDER="${HERE:h:h:h}"         # up three: Contents -> BocciaTimer.app -> repo folder
+TIMER="$FOLDER/bocciatimer.html"
+CHROME="/Applications/Google Chrome.app"
+PROFILE="$HOME/Library/Application Support/BocciaTimer/chrome-profile"
+
+if [[ ! -f "$TIMER" ]]; then
+  osascript -e 'display alert "Boccia Timer not found" message "bocciatimer.html is not next to BocciaTimer.app. Move the app back into the boccia-timer folder." as critical'
+  exit 1
+fi
+
+if [[ ! -d "$CHROME" ]]; then
+  open "$TIMER"                 # fall back to the default browser
+  exit 0
+fi
+
+open -na "$CHROME" --args \
+  --app="file://$TIMER" \
+  --window-size=1280,800 \
+  --user-data-dir="$PROFILE"

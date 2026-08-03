@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 One file, `bocciatimer.html` (~1090 lines): inline `<style>`, inline `<script>` (`"use strict"`, vanilla ES6), no framework, no build step, no dependencies, no tests. The only external assets are `1minute.wav`, `30seconds.wav` and `timeup.wav`, loaded by relative path, plus the favicons (`favicon-16.png`, `favicon-32.png`, `apple-touch-icon.png`) — cosmetic only, the page works without them. Keep it that way — "self-contained" is the point, since this runs from a laptop at competition venues.
 
-`logo.svg` is the master artwork; every PNG in the folder is rendered from it (see README). `/Applications/BocciaTimer.app` — a Dock launcher that opens this folder's HTML in a chromeless Chrome window — lives outside the repo and hardcodes the folder path, so moving this directory means editing `Contents/MacOS/launcher` inside that bundle.
+`logo.svg` is the master artwork; every PNG in the folder is rendered from it (see README).
+
+`BocciaTimer.app` is a Dock launcher that opens this folder's HTML in a chromeless Chrome window. It is committed to the repo, and its `Contents/MacOS/launcher` resolves the folder from its own location (`${0:A:h}` then three `:h`) rather than hardcoding a path — that is what makes the repo relocatable, so don't replace it with an absolute path. Note the executable bit on `launcher` is part of the commit (mode 100755); if it is ever lost the app fails to launch with no visible error. Rebuild its icon with `iconutil -c icns` when the artwork changes.
 
 Almost every change lands in that one file. There is nothing to build, lint or transpile.
 
