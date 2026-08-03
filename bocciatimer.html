@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Boccia Match Timer (MK3)
-  Rebuilt from Alisdair Gurney's Boccia Timer MK2 (boccia@agurney.com).
+  Boccia Match Timer
   Self-contained: no external scripts. Needs 1minute.wav, 30seconds.wav and
   timeup.wav alongside this file for the audio cues.
 -->
@@ -82,8 +81,6 @@
   button:active { transform: translateY(1px); }
   .spacer { flex: 1; }
   #hint { color: #777; font-size: 12px; }
-  #credit { color: #555; font-size: 11px; }
-  @media (max-width: 1450px) { #credit { display: none; } }
 
   /* ---------- Main panels ---------- */
   #main {
@@ -415,7 +412,6 @@
     <button id="newend">New End</button>
     <span class="spacer"></span>
     <span id="hint">R/B = clocks · F = fullscreen · H = hide controls</span>
-    <span id="credit">after Alisdair Gurney's Boccia Timer</span>
     <button id="fsbtn">Fullscreen</button>
     <button id="hidebtn">Hide controls</button>
   </div>
