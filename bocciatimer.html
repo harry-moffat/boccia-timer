@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<!--
+  Boccia Match Timer (MK3)
+  Rebuilt from Alisdair Gurney's Boccia Timer MK2 (boccia@agurney.com).
+  Self-contained: no external scripts. Needs 1minute.wav, 30seconds.wav and
+  timeup.wav alongside this file for the audio cues.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boccia Match Timer</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: #000;
+    color: #fff;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    overflow: hidden;
+  }
+  #app {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    height: 100dvh;
+    background: #000;
+  }
+
+  /* ---------- Controls bar ---------- */
+  /* explicit rows: a display:none control bar must not shift #main/#strip up a row */
+  #controls { grid-row: 1; }
+  #main     { grid-row: 2; }
+  #strip    { grid-row: 3; }
+
+  #controls {
+    background: #111;
+    border-bottom: 2px solid #333;
+    padding: 5px 8px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    max-height: 22vh;
+    overflow-y: auto;
+  }
+  #controls.hidden { display: none; }
+  #controls label { color: #bbb; white-space: nowrap; }
+  /* the checkbox and its text read as one control, set apart from its neighbours */
+  #controls label:has(#tiebreak) {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0 10px 0 4px;
+    color: #eee;
+  }
+  #tiebreak { width: 15px; height: 15px; accent-color: #ffea00; }
+  #controls button { font-size: 13px; padding: 4px 9px; }
+  /* the shortcut hint is the first thing to go when space is tight */
+  @media (max-width: 1250px) { #hint { display: none; } }
+  #controls input[type=number] {
+    width: 60px;
+    font-size: 16px;
+    padding: 4px;
+    background: #222;
+    color: #fff;
+    border: 1px solid #555;
+    border-radius: 4px;
+    text-align: center;
+  }
+  button {
+    font-family: inherit;
+    font-size: 15px;
+    padding: 6px 12px;
+    background: #333;
+    color: #eee;
+    border: 1px solid #666;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  button:hover { border-color: #ffea00; color: #fff; }
+  button:active { transform: translateY(1px); }
+  .spacer { flex: 1; }
+  #hint { color: #777; font-size: 12px; }
+  #credit { color: #555; font-size: 11px; }
+  @media (max-width: 1450px) { #credit { display: none; } }
+
+  /* ---------- Main panels ---------- */
+  #main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    min-height: 0;
+  }
+  .panel {
+    display: grid;
+    grid-template-rows: auto auto 1fr auto auto;
+    align-items: center;
+    justify-items: center;
+    padding: 1vh 1vw;
+    gap: 0.5vh;
+    transition: filter 0.3s, background 0.3s;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+  #redpanel  { background: #c8102e; }
+  #bluepanel { background: #0033cc; }
+  .panel.dim { filter: brightness(0.55); }
+
+  .who { text-align: center; line-height: 1.1; width: 100%; }
+  .pname {
+    font-size: min(3.4vw, 6.5vh);
+    font-weight: 700;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    border: none;
+    background: transparent;
+    color: #fff;
+    text-align: center;
+    width: 100%;
+    outline: none;
+  }
+  .pcountry {
+    font-size: min(1.7vw, 3.2vh);
+    font-weight: 400;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.85);
+    border: none;
+    background: transparent;
+    text-align: center;
+    width: 100%;
+    outline: none;
+  }
+  .pname:focus, .pcountry:focus { background: rgba(0,0,0,0.25); border-radius: 6px; }
+  .pname::placeholder, .pcountry::placeholder { color: rgba(255,255,255,0.4); }
+
+  .score {
+    font-size: min(15vw, 27vh);
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 1.5vw;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .scorebtn.hidden { display: none; }
+  .scorebtn {
+    font-size: min(2.2vw, 4.2vh);
+    width: min(4.2vw, 7.5vh);
+    height: min(4.2vw, 7.5vh);
+    border-radius: 50%;
+    background: rgba(0,0,0,0.3);
+    border: 2px solid rgba(255,255,255,0.5);
+    color: #fff;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .clock {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: min(12vw, 26vh);
+    font-weight: 700;
+    white-space: nowrap;
+    line-height: 1;
+    text-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    cursor: pointer;
+    user-select: none;
+  }
+  .clock.warning { color: #ffea00; }
+  .clock.expired { animation: flash 0.7s step-end infinite; }
+  @keyframes flash { 50% { opacity: 0.15; } }
+
+  /* balls remaining in panel */
+  .panelballs {
+    display: flex;
+    gap: 1vw;
+    padding: 0.5vh 0;
+  }
+  .pball {
+    width: min(4vw, 7vh);
+    height: min(4vw, 7vh);
+    border-radius: 50%;
+    border: 3px solid #fff;
+    background: #fff;
+    cursor: pointer;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  .pball.used {
+    background: transparent;
+    opacity: 0.35;
+    cursor: default;
+  }
+  .pball:not(.used):hover { box-shadow: 0 0 0 4px rgba(255,255,255,0.4); }
+
+  .panelbtns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+    padding-bottom: 0.5vh;
+  }
+  .panelbtns.hidden { display: none; }
+  .adjbtn {
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.5);
+    color: #fff;
+  }
+
+  /* ---------- Bottom strip ---------- */
+  #strip {
+    background: #000;
+    border-top: 3px solid #333;
+    display: flex;
+    align-items: center;
+    gap: 1.2vw;
+    padding: 1.2vh 1.5vw;
+  }
+  /* the end label and the button cluster take equal shares of the leftover
+     space, which centres #slots on the screen rather than in the gap between */
+  #endlabel {
+    font-size: min(2.6vw, 5vh);
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+    flex: 1 1 0;
+  }
+  /* no min-width:0 on either side: when the window is too narrow for equal
+     shares the sides keep their content width and the dots slide off-centre,
+     rather than the buttons overlapping them */
+  #stripright {
+    display: flex;
+    align-items: center;
+    gap: 1.2vw;
+    flex: 1 1 0;
+    justify-content: flex-end;
+  }
+  #slots {
+    display: flex;
+    gap: 0.6vw;
+    flex: 0 1 auto;
+    min-width: 0;
+    justify-content: center;
+  }
+  .slot {
+    width: min(2.9vw, 5.8vh);
+    height: min(2.9vw, 5.8vh);
+    flex: 0 1 auto;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    border: 3px solid #666;
+    background: transparent;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .slot.red  { background: #ff2244; border-color: #ff2244; }
+  .slot.blue { background: #2266ff; border-color: #2266ff; }
+  .slot.last { cursor: pointer; box-shadow: 0 0 0 3px rgba(255,255,255,0.35); }
+  #stripbtns { display: flex; gap: 6px; }
+  #stripbtns.hidden { display: none; }
+
+  /* only affordance to bring the control bar back once it is hidden */
+  #showctl {
+    position: fixed;
+    top: 8px;
+    right: 8px;
+    z-index: 10;
+    display: none;
+    opacity: 0.25;
+    font-size: 20px;
+    line-height: 1;
+    padding: 6px 10px;
+    background: rgba(0,0,0,0.6);
+  }
+  #showctl.visible { display: block; }
+  #showctl:hover { opacity: 1; }
+
+  /* ---------- Match buttons (stay visible in presentation mode) ---------- */
+  /* above the overlays (z-index 20) so Warm-up can be re-pressed to restart
+     and End Complete stays reachable while a countdown is on screen */
+  #matchbtns { display: flex; gap: 5px; flex: none; position: relative; z-index: 30; }
+  #matchbtns button {
+    font-size: min(0.85vw, 1.5vh);
+    padding: 0.6vh 0.55vw;
+    white-space: nowrap;
+  }
+
+  /* ---------- Overlays ---------- */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    background: #000;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3vh;
+    text-align: center;
+    padding: 2vh 2vw;
+  }
+  .overlay.show { display: flex; }
+  .overlaytitle { font-size: min(4vw, 7vh); font-weight: 800; letter-spacing: 0.05em; }
+  .overlayhint { color: #888; font-size: min(1.5vw, 2.5vh); }
+  .overlaybtns { display: flex; gap: 2vw; }
+  .bigbtn { font-size: min(2.2vw, 4vh); padding: 1.5vh 3vw; border-radius: 12px; }
+
+  /* warm-up / break countdown, flanked by the live score */
+  #auxoverlay { flex-direction: row; justify-content: space-evenly; gap: 2vw; }
+  #auxmid { display: flex; flex-direction: column; align-items: center; gap: 2vh; }
+  .auxscore {
+    font-size: min(14vw, 30vh);
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  #auxred  { color: #ff2244; }
+  #auxblue { color: #2266ff; }
+  #auxoverlay.noscore .auxscore { display: none; }
+  /* with the score hidden the countdown gets the full width back */
+  #auxoverlay.noscore #auxtime { font-size: min(22vw, 42vh); }
+  #auxoverlay.noscore #auxlabel { font-size: min(6vw, 11vh); }
+  #auxlabel { font-size: min(4.5vw, 8vh); font-weight: 800; letter-spacing: 0.15em; }
+  #auxtime {
+    font-family: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+    font-variant-numeric: tabular-nums;
+    font-size: min(16vw, 34vh);
+    font-weight: 700;
+    line-height: 1;
+  }
+  #auxtime.warning { color: #ffea00; }
+  #auxtime.expired { animation: flash 0.7s step-end infinite; }
+
+  /* end score entry */
+  #endcols { display: flex; gap: 4vw; }
+  .endcol {
+    padding: 3vh 4vw;
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2vh;
+    min-width: min(22vw, 40vh);
+  }
+  .endcol.endred  { background: #c8102e; }
+  .endcol.endblue { background: #0033cc; }
+  .endcolname { font-size: min(2.5vw, 4.5vh); font-weight: 700; }
+  .endval {
+    font-size: min(10vw, 18vh);
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .endsteps { display: flex; gap: 2vw; }
+  .stepbtn {
+    font-size: min(3vw, 5.5vh);
+    width: min(6vw, 11vh);
+    height: min(6vw, 11vh);
+    border-radius: 50%;
+    background: rgba(0,0,0,0.35);
+    border: 3px solid rgba(255,255,255,0.6);
+    color: #fff;
+    line-height: 1;
+    padding: 0;
+  }
+
+  /* final score */
+  #finalnames {
+    display: flex;
+    align-items: center;
+    gap: 2vw;
+    font-size: min(3vw, 5.5vh);
+    font-weight: 700;
+  }
+  #finaltotals {
+    display: flex;
+    align-items: center;
+    gap: 1.5vw;
+    font-size: min(8vw, 15vh);
+    font-weight: 800;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  /* the winner's bullet always sits outboard of its number, never between the scores */
+  .bullet { font-size: 0.7em; line-height: 1; }
+  .bullet.blank { visibility: hidden; }
+  .rside { color: #ff2244; }
+  .bside { color: #2266ff; }
+  .finaldash { color: #888; }
+  #endstable {
+    border-collapse: collapse;
+    font-size: min(2.4vw, 4.4vh);
+    font-variant-numeric: tabular-nums;
+  }
+  #endstable th, #endstable td { padding: 0.6vh 2.5vw; border-bottom: 1px solid #444; }
+  #endstable th { font-weight: 600; }
+  #endstable .endnum { color: #bbb; }
+  #endstable .totrow td { border-top: 3px solid #fff; border-bottom: none; font-weight: 800; }
+</style>
+</head>
+<body>
+<button id="showctl" title="Show controls (H)">&#9881;</button>
+<div id="app">
+
+  <div id="controls">
+    <label>End:</label>
+    <button id="endminus">−</button>
+    <button id="endplus">+</button>
+    <label><input type="checkbox" id="tiebreak"> Tiebreak</label>
+    <label for="gametime">Time (min):</label>
+    <input id="gametime" type="number" min="0.5" step="0.5" value="6">
+    <button id="resettimes">Reset Times</button>
+    <button id="resetscores">Reset Scores</button>
+    <button id="resetends">Reset Ends</button>
+    <button id="newend">New End</button>
+    <span class="spacer"></span>
+    <span id="hint">R/B = clocks · F = fullscreen · H = hide controls</span>
+    <span id="credit">after Alisdair Gurney's Boccia Timer</span>
+    <button id="fsbtn">Fullscreen</button>
+    <button id="hidebtn">Hide controls</button>
+  </div>
+
+  <div id="main">
+    <div class="panel" id="redpanel">
+      <div class="who">
+        <input class="pname" id="redname" placeholder="Red player" autocomplete="off">
+        <input class="pcountry" id="redcountry" placeholder="Country" autocomplete="off">
+      </div>
+      <div class="score">
+        <button class="scorebtn" data-side="red" data-d="-1">−</button>
+        <span id="redscore">0</span>
+        <button class="scorebtn" data-side="red" data-d="1">+</button>
+      </div>
+      <div class="clock" id="redclock" title="Click to play/pause">6:00</div>
+      <div class="panelballs" id="redballs"></div>
+      <div class="panelbtns adjrow">
+        <button class="adjbtn" data-side="red" data-ms="60000">Min +</button>
+        <button class="adjbtn" data-side="red" data-ms="-60000">Min −</button>
+        <button class="adjbtn" data-side="red" data-ms="1000">Sec +</button>
+        <button class="adjbtn" data-side="red" data-ms="-1000">Sec −</button>
+      </div>
+    </div>
+
+    <div class="panel" id="bluepanel">
+      <div class="who">
+        <input class="pname" id="bluename" placeholder="Blue player" autocomplete="off">
+        <input class="pcountry" id="bluecountry" placeholder="Country" autocomplete="off">
+      </div>
+      <div class="score">
+        <button class="scorebtn" data-side="blue" data-d="-1">−</button>
+        <span id="bluescore">0</span>
+        <button class="scorebtn" data-side="blue" data-d="1">+</button>
+      </div>
+      <div class="clock" id="blueclock" title="Click to play/pause">6:00</div>
+      <div class="panelballs" id="blueballs"></div>
+      <div class="panelbtns adjrow">
+        <button class="adjbtn" data-side="blue" data-ms="60000">Min +</button>
+        <button class="adjbtn" data-side="blue" data-ms="-60000">Min −</button>
+        <button class="adjbtn" data-side="blue" data-ms="1000">Sec +</button>
+        <button class="adjbtn" data-side="blue" data-ms="-1000">Sec −</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="strip">
+    <span id="endlabel">END 1</span>
+    <div id="slots"></div>
+    <div id="stripright">
+      <div id="stripbtns">
+        <button id="undoball">Undo ball</button>
+      </div>
+      <div id="matchbtns">
+        <button id="warmupbtn">Warm-up 2:00</button>
+        <button id="breakbtn">Break 1:00</button>
+        <button id="endcomplete">End Complete</button>
+        <button id="matchcomplete">Match Done</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="overlay" id="auxoverlay">
+  <div class="auxscore" id="auxred">0</div>
+  <div id="auxmid">
+    <div id="auxlabel">WARM-UP</div>
+    <div id="auxtime">2:00</div>
+    <div class="overlayhint">Click anywhere to dismiss</div>
+  </div>
+  <div class="auxscore" id="auxblue">0</div>
+</div>
+
+<div class="overlay" id="endoverlay">
+  <div class="overlaytitle" id="endtitle">END 1 — ENTER SCORE</div>
+  <div id="endcols">
+    <div class="endcol endred">
+      <div class="endcolname" id="endredname">Red</div>
+      <div class="endval" id="endredval">0</div>
+      <div class="endsteps">
+        <button class="stepbtn" data-eside="red" data-d="-1">−</button>
+        <button class="stepbtn" data-eside="red" data-d="1">+</button>
+      </div>
+    </div>
+    <div class="endcol endblue">
+      <div class="endcolname" id="endbluename">Blue</div>
+      <div class="endval" id="endblueval">0</div>
+      <div class="endsteps">
+        <button class="stepbtn" data-eside="blue" data-d="-1">−</button>
+        <button class="stepbtn" data-eside="blue" data-d="1">+</button>
+      </div>
+    </div>
+  </div>
+  <div class="overlaybtns">
+    <button id="endsave" class="bigbtn">Save End</button>
+    <button id="endcancel" class="bigbtn">Cancel</button>
+  </div>
+</div>
+
+<div class="overlay" id="finaloverlay">
+  <div class="overlaytitle">FINAL SCORE</div>
+  <div id="finalnames"></div>
+  <div id="finaltotals"></div>
+  <table id="endstable"></table>
+  <button id="finalclose" class="bigbtn">Close</button>
+</div>
+
+<script>
+"use strict";
+
+const BALLS_PER_SIDE = 6;
+const $ = id => document.getElementById(id);
+
+const beep1min = new Audio('1minute.wav');
+const beep30s  = new Audio('30seconds.wav');
+const alarm    = new Audio('timeup.wav');
+
+/* ================= Clocks ================= */
+
+function makeClock(side, el) {
+  return {
+    side, el,
+    running: false,
+    deadline: 0,          // Date.now() based, valid while running
+    remaining: 6 * 60000, // ms, valid while paused
+    fired60: false,
+    fired30: false,
+    expired: false,
+  };
+}
+const clocks = {
+  red:  makeClock('red',  $('redclock')),
+  blue: makeClock('blue', $('blueclock')),
+};
+
+function gameTimeMs() {
+  const v = parseFloat($('gametime').value);
+  return (isFinite(v) && v > 0) ? Math.round(v * 60000) : 6 * 60000;
+}
+
+function clockRemaining(c) {
+  return c.running ? Math.max(0, c.deadline - Date.now()) : c.remaining;
+}
+
+function fmt(ms) {
+  const totalSec = Math.ceil(ms / 1000);
+  const m = Math.floor(totalSec / 60);
+  const s = totalSec % 60;
+  return m + ':' + String(s).padStart(2, '0');
+}
+
+function renderClock(c) {
+  const ms = clockRemaining(c);
+  c.el.textContent = fmt(ms);
+  c.el.classList.toggle('warning', ms > 0 && ms <= 30000);
+  c.el.classList.toggle('expired', c.expired);
+}
+
+function setActivePanels() {
+  $('redpanel').classList.toggle('dim',  clocks.blue.running);
+  $('bluepanel').classList.toggle('dim', clocks.red.running);
+}
+
+function playClock(side) {
+  const c = clocks[side], other = clocks[side === 'red' ? 'blue' : 'red'];
+  if (c.expired) return;
+  cancelAux();            // starting a player clock means the warm-up/break is over
+  pauseClock(other.side, true);
+  c.deadline = Date.now() + c.remaining;
+  c.running = true;
+  setActivePanels();
+}
+
+// countBall: a throw-flow pause (R/B, Play/Pause, or the other side starting)
+// records the throw; administrative pauses (warm-up, end entry, ...) must not.
+// The first throw of each end is the jack, which is not one of the 6 balls.
+let jackThrown = false;
+
+function pauseClock(side, countBall = false) {
+  const c = clocks[side];
+  if (c.running) {
+    c.remaining = Math.max(0, c.deadline - Date.now());
+    c.running = false;
+    // In a tiebreak the jack starts on the cross, so there is no jack throw to skip.
+    if (countBall) {
+      if (jackThrown || state.tb) throwBall(side);
+      else jackThrown = true;
+    }
+  }
+  setActivePanels();
+}
+
+function toggleClock(side) {
+  clocks[side].running ? pauseClock(side, true) : playClock(side);
+}
+
+function adjustClock(side, ms) {
+  const c = clocks[side];
+  const now = clockRemaining(c);
+  const next = Math.max(0, now + ms);
+  c.remaining = next;
+  if (c.running) c.deadline = Date.now() + next;
+  if (next > 60000) c.fired60 = false;
+  if (next > 30000) c.fired30 = false;
+  if (next > 0) c.expired = false;
+  renderClock(c);
+}
+
+function resetClocks() {
+  const t = gameTimeMs();
+  for (const c of Object.values(clocks)) {
+    c.running = false;
+    c.remaining = t;
+    c.fired60 = c.fired30 = c.expired = false;
+    renderClock(c);
+  }
+  setActivePanels();
+  localStorage.setItem('boccia.gametime', $('gametime').value);
+}
+
+function tick() {
+  for (const c of Object.values(clocks)) {
+    if (!c.running) continue;
+    const ms = clockRemaining(c);
+    if (ms <= 60000 && !c.fired60) { c.fired60 = true; if (ms > 55000) beep1min.play().catch(()=>{}); }
+    if (ms <= 30000 && !c.fired30) { c.fired30 = true; if (ms > 25000) beep30s.play().catch(()=>{}); }
+    if (ms === 0 && !c.expired) {
+      c.expired = true;
+      c.running = false;
+      c.remaining = 0;
+      alarm.play().catch(()=>{});
+      setActivePanels();
+    }
+    renderClock(c);
+  }
+  tickAux();
+}
+setInterval(tick, 100);
+
+/* ================= Warm-up / between-ends timer ================= */
+
+// Kept out of the clocks map: it has no side, and the 60s cue in tick() would
+// fire the instant a 1:00 break started.
+const aux = { running: false, deadline: 0, fired60: false, fired30: false, hideTimer: 0 };
+
+function renderAux(ms) {
+  const el = $('auxtime');
+  el.textContent = fmt(ms);
+  el.classList.toggle('warning', ms > 0 && ms <= 30000);
+}
+
+// showScore: the between-ends break shows the running score; a warm-up is always
+// 0-0, so it shows the countdown alone.
+function startAux(label, ms, showScore = false) {
+  pauseClock('red');
+  pauseClock('blue');
+  clearTimeout(aux.hideTimer);
+  aux.running = true;
+  aux.deadline = Date.now() + ms;
+  aux.fired60 = ms <= 65000;   // a 1:00 break must not beep at the starting gun
+  aux.fired30 = false;
+  $('auxlabel').textContent = label;
+  $('auxred').textContent = state.red;
+  $('auxblue').textContent = state.blue;
+  $('auxoverlay').classList.toggle('noscore', !showScore);
+  $('auxtime').classList.remove('expired');
+  renderAux(ms);
+  $('auxoverlay').classList.add('show');
+}
+
+function cancelAux() {
+  aux.running = false;
+  clearTimeout(aux.hideTimer);
+  $('auxoverlay').classList.remove('show');
+}
+
+function tickAux() {
+  if (!aux.running) return;
+  const ms = Math.max(0, aux.deadline - Date.now());
+  if (ms <= 60000 && !aux.fired60) { aux.fired60 = true; if (ms > 55000) beep1min.play().catch(()=>{}); }
+  if (ms <= 30000 && !aux.fired30) { aux.fired30 = true; if (ms > 25000) beep30s.play().catch(()=>{}); }
+  if (ms === 0) {
+    aux.running = false;
+    alarm.play().catch(()=>{});
+    $('auxtime').classList.add('expired');
+    aux.hideTimer = setTimeout(cancelAux, 4000);
+  }
+  renderAux(ms);
+}
+
+$('warmupbtn').addEventListener('click', () => startAux('WARM-UP', 120000));
+$('breakbtn').addEventListener('click', () => startAux('BREAK', 60000, true));
+$('auxoverlay').addEventListener('click', cancelAux);
+
+/* ================= Scores & ends ================= */
+
+const state = { red: 0, blue: 0, end: 1, ends: [], tb: false };
+
+function persistMatch() {
+  localStorage.setItem('boccia.match', JSON.stringify({
+    red: state.red, blue: state.blue, end: state.end, ends: state.ends, tb: state.tb,
+  }));
+}
+
+function loadMatch() {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem('boccia.match')); } catch (e) { return; }
+  if (!saved || typeof saved !== 'object') return;
+  const num = (v, min) => (typeof v === 'number' && isFinite(v) && v >= min) ? v : null;
+  state.red  = num(saved.red, 0)  ?? state.red;
+  state.blue = num(saved.blue, 0) ?? state.blue;
+  state.end  = num(saved.end, 1)  ?? state.end;
+  state.tb = saved.tb === true;
+  if (Array.isArray(saved.ends)) {
+    state.ends = saved.ends
+      .filter(e => e && num(e.red, 0) !== null && num(e.blue, 0) !== null)
+      .map(e => ({ red: e.red, blue: e.blue, tb: e.tb === true }));
+  }
+}
+
+// The 5th and 7th ends are the tiebreak ends; arriving at one ticks the box,
+// leaving it unticks. A manual override then stands until the end changes again.
+function autoTiebreak() {
+  state.tb = (state.end === 5 || state.end === 7);
+}
+
+function renderScores() {
+  $('redscore').textContent = state.red;
+  $('bluescore').textContent = state.blue;
+  $('endlabel').textContent = state.tb ? 'END TB' : 'END ' + state.end;
+  $('tiebreak').checked = state.tb;
+}
+
+$('tiebreak').addEventListener('change', () => {
+  state.tb = $('tiebreak').checked;
+  renderScores();
+  persistMatch();
+});
+
+document.querySelectorAll('.scorebtn').forEach(b => {
+  b.addEventListener('click', () => {
+    const s = b.dataset.side;
+    state[s] = Math.max(0, state[s] + Number(b.dataset.d));
+    renderScores();
+    persistMatch();
+  });
+});
+$('endplus').addEventListener('click', () => { state.end++; autoTiebreak(); renderScores(); persistMatch(); });
+$('endminus').addEventListener('click', () => { state.end = Math.max(1, state.end - 1); autoTiebreak(); renderScores(); persistMatch(); });
+// Reset Scores doubles as "new match": totals and the per-end history both go.
+$('resetscores').addEventListener('click', () => {
+  state.red = state.blue = 0;
+  state.ends = [];
+  renderScores();
+  persistMatch();
+});
+$('resetends').addEventListener('click', () => { state.end = 1; autoTiebreak(); renderScores(); persistMatch(); });
+
+/* ================= End complete ================= */
+
+let endEntry = { red: 0, blue: 0 };
+
+function playerName(side) {
+  return $(side + 'name').value.trim() || (side === 'red' ? 'Red' : 'Blue');
+}
+
+function renderEndEntry() {
+  $('endredval').textContent = endEntry.red;
+  $('endblueval').textContent = endEntry.blue;
+}
+
+function openEndEntry() {
+  pauseClock('red');
+  pauseClock('blue');
+  cancelAux();
+  $('finaloverlay').classList.remove('show');
+  endEntry = { red: 0, blue: 0 };
+  $('endtitle').textContent = (state.tb ? 'TB' : 'END ' + state.end) + ' — ENTER SCORE';
+  $('endredname').textContent = playerName('red');
+  $('endbluename').textContent = playerName('blue');
+  renderEndEntry();
+  $('endoverlay').classList.add('show');
+}
+
+function saveEnd() {
+  const tb = state.tb;
+  state.ends.push({ red: endEntry.red, blue: endEntry.blue, tb });
+  // A tiebreak decides the winner but scores no points.
+  if (!tb) {
+    state.red += endEntry.red;
+    state.blue += endEntry.blue;
+  }
+  state.end++;
+  autoTiebreak();
+  newEnd();        // clear the throw dots
+  resetClocks();
+  renderScores();
+  persistMatch();
+  $('endoverlay').classList.remove('show');
+}
+
+document.querySelectorAll('.stepbtn').forEach(b => {
+  b.addEventListener('click', () => {
+    const s = b.dataset.eside;
+    endEntry[s] = Math.max(0, endEntry[s] + Number(b.dataset.d));
+    renderEndEntry();
+  });
+});
+$('endcomplete').addEventListener('click', openEndEntry);
+$('endsave').addEventListener('click', saveEnd);
+$('endcancel').addEventListener('click', () => $('endoverlay').classList.remove('show'));
+
+/* ================= Match complete ================= */
+
+function openFinal() {
+  pauseClock('red');
+  pauseClock('blue');
+  cancelAux();
+  $('endoverlay').classList.remove('show');
+  const rn = playerName('red'), bn = playerName('blue');
+
+  const span = (text, cls) => {
+    const el = document.createElement('span');
+    el.textContent = text;
+    if (cls) el.className = cls;
+    return el;
+  };
+
+  const names = $('finalnames');
+  names.innerHTML = '';
+  names.append(span(rn, 'rside'), span('v', ''), span(bn, 'bside'));
+
+  // Level on points is settled by the last tiebreak end, which scores no points
+  // of its own. A hidden bullet on the losing side keeps the numbers centred.
+  const lastTb = [...state.ends].reverse().find(e => e.tb);
+  let redWon = state.red > state.blue, blueWon = state.blue > state.red;
+  if (!redWon && !blueWon && lastTb) {
+    redWon = lastTb.red > lastTb.blue;
+    blueWon = lastTb.blue > lastTb.red;
+  }
+  const totals = $('finaltotals');
+  totals.innerHTML = '';
+  totals.append(
+    span('●', 'bullet rside' + (redWon ? '' : ' blank')),
+    span(state.red, 'rside'),
+    span('—', 'finaldash'),
+    span(state.blue, 'bside'),
+    span('●', 'bullet bside' + (blueWon ? '' : ' blank')),
+  );
+
+  const table = $('endstable');
+  table.innerHTML = '';
+  if (!state.ends.length) {
+    const row = table.insertRow();
+    const cell = row.insertCell();
+    cell.colSpan = 3;
+    cell.textContent = 'No ends recorded';
+  } else {
+    const head = table.createTHead().insertRow();
+    [['End', 'endnum'], [rn, 'rside'], [bn, 'bside']].forEach(([label, cls]) => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      th.className = cls;
+      head.appendChild(th);
+    });
+    const body = table.createTBody();
+    let endNo = 0;
+    state.ends.forEach(e => {
+      const row = body.insertRow();
+      const n = row.insertCell(); n.className = 'endnum';
+      const r = row.insertCell(); r.className = 'rside';
+      const b = row.insertCell(); b.className = 'bside';
+      if (e.tb) {
+        // the tiebreak scores nothing — it just marks who took it
+        n.textContent = 'TB';
+        r.textContent = e.red > e.blue ? '●' : '';
+        b.textContent = e.blue > e.red ? '●' : '';
+      } else {
+        n.textContent = ++endNo;
+        r.textContent = e.red;
+        b.textContent = e.blue;
+      }
+    });
+    const tot = body.insertRow();
+    tot.className = 'totrow';
+    const tl = tot.insertCell(); tl.textContent = 'Total'; tl.className = 'endnum';
+    const rc = tot.insertCell(); rc.textContent = state.red;  rc.className = 'rside';
+    const bc = tot.insertCell(); bc.textContent = state.blue; bc.className = 'bside';
+  }
+  $('finaloverlay').classList.add('show');
+}
+
+$('matchcomplete').addEventListener('click', openFinal);
+$('finalclose').addEventListener('click', () => $('finaloverlay').classList.remove('show'));
+$('finaloverlay').addEventListener('click', e => {
+  if (e.target === $('finaloverlay')) $('finaloverlay').classList.remove('show');
+});
+
+/* ================= Balls ================= */
+
+// throws = ordered list of 'red' | 'blue' for the current end
+let throws = [];
+
+function ballsUsed(side) {
+  return throws.filter(t => t === side).length;
+}
+
+function buildPanelBalls() {
+  for (const side of ['red', 'blue']) {
+    const holder = $(side + 'balls');
+    holder.innerHTML = '';
+    for (let i = 0; i < BALLS_PER_SIDE; i++) {
+      const b = document.createElement('div');
+      b.className = 'pball';
+      b.title = 'Click when ' + side + ' throws a ball';
+      b.addEventListener('click', () => throwBall(side));
+      holder.appendChild(b);
+    }
+  }
+  const slots = $('slots');
+  slots.innerHTML = '';
+  for (let i = 0; i < BALLS_PER_SIDE * 2; i++) {
+    const s = document.createElement('div');
+    s.className = 'slot';
+    s.addEventListener('click', () => {
+      // clicking the most recent filled slot undoes it
+      if (i === throws.length - 1) undoThrow();
+    });
+    slots.appendChild(s);
+  }
+}
+
+function renderBalls() {
+  for (const side of ['red', 'blue']) {
+    const used = ballsUsed(side);
+    const kids = $(side + 'balls').children;
+    // balls fill up as used, left to right
+    for (let i = 0; i < kids.length; i++) {
+      kids[i].classList.toggle('used', i < used);
+    }
+  }
+  const slots = $('slots').children;
+  for (let i = 0; i < slots.length; i++) {
+    slots[i].classList.remove('red', 'blue', 'last');
+    if (i < throws.length) {
+      slots[i].classList.add(throws[i]);
+      if (i === throws.length - 1) slots[i].classList.add('last');
+      slots[i].title = 'Click to undo last ball';
+    } else {
+      slots[i].title = '';
+    }
+  }
+}
+
+function throwBall(side) {
+  if (ballsUsed(side) >= BALLS_PER_SIDE) return;
+  throws.push(side);
+  renderBalls();
+}
+
+function undoThrow() {
+  throws.pop();
+  renderBalls();
+}
+
+function newEnd() {
+  throws = [];
+  jackThrown = false;
+  renderBalls();
+}
+
+$('undoball').addEventListener('click', undoThrow);
+$('newend').addEventListener('click', newEnd);
+
+/* ================= Panel buttons ================= */
+
+document.querySelectorAll('.adjbtn').forEach(b =>
+  b.addEventListener('click', () => adjustClock(b.dataset.side, Number(b.dataset.ms))));
+$('redclock').addEventListener('click', () => toggleClock('red'));
+$('blueclock').addEventListener('click', () => toggleClock('blue'));
+$('resettimes').addEventListener('click', resetClocks);
+$('gametime').addEventListener('keyup', e => { if (e.key === 'Enter') resetClocks(); });
+$('gametime').addEventListener('change', () =>
+  localStorage.setItem('boccia.gametime', $('gametime').value));
+
+/* ================= Names / countries persistence ================= */
+
+for (const id of ['redname', 'redcountry', 'bluename', 'bluecountry']) {
+  const el = $(id);
+  el.value = localStorage.getItem('boccia.' + id) || '';
+  el.addEventListener('input', () => localStorage.setItem('boccia.' + id, el.value));
+}
+const savedTime = localStorage.getItem('boccia.gametime');
+if (savedTime) $('gametime').value = savedTime;
+
+/* ================= Fullscreen & controls visibility ================= */
+
+function toggleFullscreen() {
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen;
+    Promise.resolve(exit.call(document)).catch(() => {});
+    return;
+  }
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  // Some embedded/managed browsers refuse the API outright; fall back to a hint
+  // rather than leaving the button looking broken.
+  Promise.resolve(req.call(el)).catch(() => {
+    $('fsbtn').textContent = navigator.platform.indexOf('Mac') === 0
+      ? 'Use ⌃⌘F' : 'Use F11';
+    setTimeout(() => { $('fsbtn').textContent = 'Fullscreen'; }, 4000);
+  });
+}
+$('fsbtn').addEventListener('click', toggleFullscreen);
+
+// Presentation mode keeps what the operator needs mid-end (clocks, Play/Pause,
+// ball clickers) and hides the setup chrome.
+function setControlsHidden(hidden) {
+  $('controls').classList.toggle('hidden', hidden);
+  $('stripbtns').classList.toggle('hidden', hidden);
+  document.querySelectorAll('.adjrow').forEach(el => el.classList.toggle('hidden', hidden));
+  document.querySelectorAll('.scorebtn').forEach(el => el.classList.toggle('hidden', hidden));
+  $('showctl').classList.toggle('visible', hidden);
+}
+let controlsHidden = false;
+function showControls(hidden) {
+  controlsHidden = hidden;
+  setControlsHidden(hidden);
+}
+function toggleControls() { showControls(!controlsHidden); }
+$('hidebtn').addEventListener('click', toggleControls);
+$('showctl').addEventListener('click', toggleControls);
+
+// Fullscreen is the "put it on the TV" action, so it carries presentation mode
+// with it in both directions.
+document.addEventListener('fullscreenchange', () => {
+  const on = !!document.fullscreenElement;
+  $('fsbtn').textContent = on ? 'Exit fullscreen' : 'Fullscreen';
+  showControls(on);
+});
+
+/* ================= Keyboard shortcuts ================= */
+
+function closeOverlays() {
+  cancelAux();
+  $('endoverlay').classList.remove('show');
+  $('finaloverlay').classList.remove('show');
+}
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === 'Escape') { closeOverlays(); return; }
+  // don't let the clock shortcuts fire at whatever is behind an open overlay
+  if (document.querySelector('.overlay.show')) return;
+  const k = e.key.toLowerCase();
+  if (k === 'r') toggleClock('red');
+  else if (k === 'b') toggleClock('blue');
+  else if (k === 'f') toggleFullscreen();
+  else if (k === 'h') toggleControls();
+});
+
+/* ================= Init ================= */
+
+buildPanelBalls();
+renderBalls();
+loadMatch();
+renderScores();
+resetClocks();
+</script>
+</body>
+</html>

@@ -1,0 +1,226 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/tr/xhtml1/DTD/xhtml1-transitional.dtd"> 
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"> 
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title>Alisdair's Boccia Timer (MK2)</title>
+  <meta name="keywords" content="jquery, timer, reset, play, pause, boccia" />
+  <meta name="description" content="Boccia Timer" />
+  <script type="text/javascript" src="boccia/java.js"></script>
+  <script type="text/javascript">try{Typekit.load();}catch(e){}</script>
+  <link rel='stylesheet' href='js/style.css'>
+  <script type='text/javascript' language='javascript' src='js/jquery.min.js'></script>
+  <script type='text/javascript' language='javascript' src='js/jquery-ui-1.8.15.custom.min.js'></script>
+  <script type='text/javascript' language='javascript' src='js/jquery.history.js'></script>
+  <script type='text/javascript' language='javascript' src='js/site.js'></script>
+  <script src="js/jquery.fittext.js"></script>
+  <script type="text/javascript" src="js/jquery.timer.js"></script>
+  <script type='text/javascript' src="js/timer-demo.js"></script>
+</head>
+
+<body onLoad="redcountdownReset();bluecountdownReset()">
+<img id='bg' style="background:#000;" />
+
+<div class='wrapper' id="all" style="background-color:#000000;">
+  <div class='header'>
+    <h1> 
+	<script type="text/javascript">
+        var ends=0; 
+        document.write( '<div id="ends">End: ' );
+        document.write( ends );
+        document.write( '</div>');
+      </script> 
+</h1> 
+ <div id="endbuttons">
+ <input type='button' 
+          value='-' 
+          style="background-color:#222222;"  
+          onclick='ends=ends-1; 
+          document.getElementById("ends").innerHTML="End: "+ends;' 
+        />
+ <input type='button' 
+          value='+' 
+          style="background-color:#222222;"  
+          onclick='ends=ends+1; 
+          document.getElementById("ends").innerHTML="End: "+ends;' 
+        />
+	</div>
+
+    <div id="settime">
+    Game Time (minutes):  
+    <input id='gametime' type='text' name='startTime' value='6' style='width:30px;' />  
+    <input type='button'  style="background-color:#777; font-size:1.5em;" value='Reset Times' 
+      onclick='redcountdownReset();bluecountdownReset();
+      document.getElementById("fittext1").style.color = "#ffffff";
+      document.getElementById("fittext2").style.color = "#ffffff";
+      document.getElementById("redbox").style.background = "#ee0000";
+      document.getElementById("bluebox").style.background = "#0000ee";'
+    />
+
+    <input type='button'  style="background-color:#777; font-size:1.5em;" value='Reset Scores' 
+    onclick='redscore=0;document.getElementById("redscoretext").innerHTML="Red: "+redscore;
+      bluescore=0;document.getElementById("bluescoretext").innerHTML="Blue: "+bluescore;
+      document.getElementById("fittext1").style.color = "#ffffff";
+      document.getElementById("fittext2").style.color = "#ffffff";
+      document.getElementById("redbox").style.background = "#ee0000";
+      document.getElementById("bluebox").style.background = "#0000ee";'
+      />
+
+    <input type='button'  style="background-color:#777; font-size:1.5em;" value='Reset Ends' 
+    onclick='ends=0;document.getElementById("ends").innerHTML="End: "+ends;
+      document.getElementById("fittext1").style.color = "#ffffff";
+      document.getElementById("fittext2").style.color = "#ffffff";
+      document.getElementById("redbox").style.background = "#ee0000";
+      document.getElementById("bluebox").style.background = "#0000ee";'
+      />
+
+
+    </div>
+  </div>
+  <div class='body'>
+    <div id="redbox">	    
+      <h1 id="fittext1">
+      <script type="text/javascript">
+        var redscore=0; 
+        document.write( '<div id="redscoretext">Red: ' );
+        document.write( redscore );
+        document.write( '</div>');
+      </script> 
+
+      <div id="redscorebuttons">
+        <input type='button' 
+          class="redbtn" 
+          value='-' 
+          style="background-color:#bb0000; font-size:.8em;width:25%;"  
+          onclick='redscore=redscore-1; 
+          document.getElementById("redscoretext").innerHTML="Red: "+redscore;' 
+        />
+
+        <input type='button' 
+          class="redbtn" 
+            value='+' 
+            style="background-color:#bb0000; font-size:.8em;width:25%;"  
+            onclick='redscore=redscore+1; 
+            document.getElementById("redscoretext").innerHTML="Red: "+redscore;' 
+          />
+      </div>
+
+      <div class='redcountdowntime'>&nbsp&nbsp:&nbsp&nbsp</div>	
+        </h1>
+        <div id="buttons">
+	
+			  <input type='button'  style="background-color:#bb0000; font-size:1em;" value='Minutes+' 
+	    onclick='redcountdownCurrent=redcountdownCurrent+6000;redcountdownTimer.once();' />
+	    <input type='button'  style="background-color:#bb0000; font-size:1em;" value='Minutes-' 
+	      onclick='redcountdownCurrent=redcountdownCurrent-6000;redcountdownTimer.once();' />
+	      <input type='button'  style="background-color:#bb0000; font-size:1em;" value='Seconds+' 
+	        onclick='redcountdownCurrent=redcountdownCurrent+100;redcountdownTimer.once();' />
+	      <input type='button'  style="background-color:#bb0000; font-size:1em;" value='Seconds-' 
+	      onclick='redcountdownCurrent=redcountdownCurrent-100;redcountdownTimer.once();' /> 
+	  <input type='button'  style="background-color:#ff0000; font-size:1.8em;width:30%;border: 4px solid #fff;;height:60px;" value='Play/Pause' onclick='redcountdownTimer.toggle();
+            bluecountdownTimer.stop(); 
+	    document.getElementById("fittext1").style.color = "#ffffff";
+	    document.getElementById("fittext2").style.color = "#dddddd";
+	    document.getElementById("redbox").style.background = "#ee0000";
+	    document.getElementById("bluebox").style.background = "#0000cc";'
+	  />
+        </div>
+      </div>
+
+      <div id="bluebox">	    
+        <h1 id="fittext2">
+      <script type="text/javascript">
+        var bluescore=0; 
+        document.write( '<div id="bluescoretext">Blue: ' );
+        document.write( bluescore );
+        document.write( '</div>');
+      </script> 
+
+
+      <div id="bluescorebuttons" >
+        <input type='button' 
+          class="bluebtn" 
+          value='-' 
+          style="background-color:#0000bb; font-size:.8em;width:25%;"  
+          onclick='bluescore=bluescore-1; 
+          document.getElementById("bluescoretext").innerHTML="Blue: "+bluescore;' 
+        />	
+	
+	
+	    <input type='button' 
+          class="bluebtn" 
+            value='+' 
+            style="background-color:#0000bb; font-size:.8em;width:25%;"  
+            onclick='bluescore=bluescore+1; 
+            document.getElementById("bluescoretext").innerHTML="Blue: "+bluescore;' 
+          />
+      </div>
+
+		      	 
+          <div class='bluecountdowntime'>&nbsp&nbsp:&nbsp&nbsp</div>	
+        </h1>
+    		
+	<div id="buttons">
+	<input type='button'  style="background-color:#0000ff; font-size:1.8em;width:30%;border: 4px solid #fff;height:60px;" value='Play/Pause' onclick='bluecountdownTimer.toggle();
+            	redcountdownTimer.stop(); 
+	        document.getElementById("fittext1").style.color = "#dddddd";
+	        document.getElementById("fittext2").style.color = "#ffffff";
+	        document.getElementById("redbox").style.background = "#cc0000";
+		document.getElementById("bluebox").style.background = "#0000ee";'
+		/>
+					    
+	       <input type='button'  style="background-color:#0000bb; font-size:1em;" value='Minutes+' 
+	         onclick='bluecountdownCurrent=bluecountdownCurrent+6000;bluecountdownTimer.once();' />
+		 <input type='button'  style="background-color:#0000bb; font-size:1em;"  value='Minutes-' 
+		   onclick='bluecountdownCurrent=bluecountdownCurrent-6000;bluecountdownTimer.once();' />
+		   <input type='button'  style="background-color:#0000bb; font-size:1em;"  value='Seconds+' 
+		     onclick='bluecountdownCurrent=bluecountdownCurrent+100;bluecountdownTimer.once();' />
+		     <input type='button'  style="background-color:#0000bb; font-size:1em;"  value='Seconds-' 
+		       onclick='bluecountdownCurrent=bluecountdownCurrent-100;bluecountdownTimer.once();' />
+</div>
+      </div>
+     
+   
+ </div>
+</div>
+ <div class='footer'>
+	 <br>
+
+
+
+<script type="text/javascript">
+  function goFullscreen(id) {
+    var element = document.getElementById(id);
+    
+    
+    if (element.mozRequestFullScreen) {
+      element.mozRequestFullScreen();
+    } else if (element.webkitRequestFullScreen) {
+      element.webkitRequestFullScreen();
+   }
+  }
+</script>
+
+
+<button onclick="goFullscreen('all'); return false">Click Me To Go Fullscreen (if available)! </button>
+
+
+
+
+
+
+
+    </div>
+  </div>
+	
+
+	<script type="text/javascript">
+	$("#fittext1").fitText();
+</script>	<script type="text/javascript">
+	$("#fittext2").fitText();
+</script>
+
+<div align=right style="color:#888;">Alisdair's Boccia timer - &copy;  boccia@agurney.com</div>
+
+</body>
+</html>
+
