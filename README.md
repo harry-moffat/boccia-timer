@@ -51,9 +51,16 @@ downloaded from GitHub gets quarantined and Gatekeeper will refuse to open an
 unsigned app. Clone the repo rather than downloading it, or clear the flag with
 `xattr -dr com.apple.quarantine BocciaTimer.app`.
 
-After editing `launcher.swift`, rebuild the binary into the bundle
-(add a second `-target x86_64-apple-macos12.3` build plus `lipo -create` to
-keep it universal):
+After editing `launcher.swift`, rebuild the binary into the bundle:
+
+```bash
+./build-app.sh
+```
+
+That builds both architectures, combines them into a universal binary, re-signs
+the bundle and runs the probe twice. To do it by hand instead (arm64 only — add
+a second `-target x86_64-apple-macos12.3` build plus `lipo -create` to keep it
+universal):
 
 ```bash
 xcrun swiftc -O -parse-as-library launcher.swift -o BocciaTimer.app/Contents/MacOS/launcher -target arm64-apple-macos12.3 -framework Cocoa -framework WebKit && codesign --force -s - BocciaTimer.app
