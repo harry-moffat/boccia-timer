@@ -424,7 +424,7 @@
     <button id="newend">New End</button>
     <button id="opendisplay">Open TV display</button>
     <span class="spacer"></span>
-    <span id="hint">R/B = clocks · F = fullscreen · H = hide controls</span>
+    <span id="hint">R/B = clocks · U = undo ball · E = end · W = warm-up · M = match done · F = fullscreen · H = hide controls</span>
     <button id="fsbtn">Fullscreen</button>
     <button id="hidebtn">Hide controls</button>
   </div>
@@ -741,8 +741,10 @@ function tickAux() {
   renderAux(ms);
 }
 
-$('warmupbtn').addEventListener('click', () => startAux('WARM-UP', 120000));
-$('breakbtn').addEventListener('click', () => startAux('BREAK', 60000, true, 15000));
+function startWarmup() { startAux('WARM-UP', 120000); }
+function startBreak()  { startAux('BREAK', 60000, true, 15000); }
+$('warmupbtn').addEventListener('click', startWarmup);
+$('breakbtn').addEventListener('click', startBreak);
 $('auxoverlay').addEventListener('click', cancelAux);
 
 /* ================= Scores & ends ================= */
@@ -879,6 +881,9 @@ function saveEnd() {
   renderScores();
   persistMatch();
   $('endoverlay').classList.remove('show');
+  // the break follows every end; if this was the last end, Match Done's
+  // cancelAux() dismisses it
+  startBreak();
 }
 
 document.querySelectorAll('.stepbtn').forEach(b => {
@@ -1144,11 +1149,19 @@ document.addEventListener('keydown', e => {
   }
   if (e.target.tagName === 'INPUT') return;
   if (e.key === 'Escape') { closeOverlays(); return; }
-  // don't let the clock shortcuts fire at whatever is behind an open overlay
-  if (document.querySelector('.overlay.show')) return;
   const k = e.key.toLowerCase();
+  // the score-entry and final overlays capture the keyboard entirely
+  if ($('endoverlay').classList.contains('show') || $('finaloverlay').classList.contains('show')) return;
+  // like #matchbtns, the match-flow keys stay live over the aux countdown, so
+  // Warm-up can be restarted and End Complete reached while it is on screen
+  if (k === 'w') { startWarmup(); return; }
+  if (k === 'e') { openEndEntry(); return; }
+  if (k === 'm') { openFinal(); return; }
+  // don't let the clock shortcuts fire at whatever is behind the countdown
+  if ($('auxoverlay').classList.contains('show')) return;
   if (k === 'r') toggleClock('red');
   else if (k === 'b') toggleClock('blue');
+  else if (k === 'u') undoThrow();
   else if (k === 'f') toggleFullscreen();
   else if (k === 'h') toggleControls();
 });

@@ -47,7 +47,7 @@ An expired player clock flashes for `EXPIRED_FLASH_MS` (5 s, stamped in `expired
 Stopping a clock is how a throw gets counted, so every call site must classify itself:
 
 - **Throw-flow pauses** pass `countBall = true` — the operator stopping a clock (`toggleClock`), or starting the other side (`playClock`).
-- **Administrative pauses** leave it `false` — `startAux`, `openEndEntry`, `openFinal`. Warm-up or opening a dialog must never record a phantom throw.
+- **Administrative pauses** leave it `false` — `startAux`, `openEndEntry`, `openFinal`. Warm-up or opening a dialog must never record a phantom throw. `saveEnd()` auto-starts the between-ends break (`startBreak()`), which is such a pause.
 
 New code that pauses a clock has to make this choice deliberately.
 
