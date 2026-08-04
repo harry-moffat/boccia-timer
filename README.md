@@ -36,6 +36,12 @@ Match state saves into the app's own WebKit storage — separate from every
 browser. A match started in the app won't appear if you open the HTML in
 Chrome or Safari, and vice versa.
 
+**Open TV display** opens the scoreboard mirror as a second app window, to drag
+onto a TV running as an extended display. That needs a binary built from
+`launcher.swift` at or after the commit that added its `WKUIDelegate`; on an
+older build the button relabels itself to *Use a browser for TV* instead of
+opening anything. Rebuild with the command below to get it.
+
 To pin it: drag `BocciaTimer.app` onto the Dock. If you later move the folder,
 the existing Dock tile still points at the old location — drag it in again from
 the new one.
@@ -45,9 +51,16 @@ downloaded from GitHub gets quarantined and Gatekeeper will refuse to open an
 unsigned app. Clone the repo rather than downloading it, or clear the flag with
 `xattr -dr com.apple.quarantine BocciaTimer.app`.
 
-After editing `launcher.swift`, rebuild the binary into the bundle
-(add a second `-target x86_64-apple-macos12.3` build plus `lipo -create` to
-keep it universal):
+After editing `launcher.swift`, rebuild the binary into the bundle:
+
+```bash
+./build-app.sh
+```
+
+That builds both architectures, combines them into a universal binary, re-signs
+the bundle and runs the probe twice. To do it by hand instead (arm64 only — add
+a second `-target x86_64-apple-macos12.3` build plus `lipo -create` to keep it
+universal):
 
 ```bash
 xcrun swiftc -O -parse-as-library launcher.swift -o BocciaTimer.app/Contents/MacOS/launcher -target arm64-apple-macos12.3 -framework Cocoa -framework WebKit && codesign --force -s - BocciaTimer.app
