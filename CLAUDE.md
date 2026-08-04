@@ -38,7 +38,9 @@ Reset any state you set for testing, including `localStorage`, so you don't leav
 
 A clock stores `deadline` (a `Date.now()` timestamp) while running and `remaining` (ms) while paused; nothing decrements. A single `setInterval(tick, 100)` re-renders every clock from the current time, and is also where the 60s/30s/expiry audio cues fire. Any new countdown must be driven from `tick()` — don't add a second interval.
 
-The warm-up/break timer (`aux`) is deliberately **not** an entry in the `clocks` map: it has no side, `playClock()`'s "pause the other side" logic assumes exactly two, and the 60-second cue in `tick()` would fire the instant a 1:00 break started. It has its own `tickAux()`, called from `tick()`.
+The warm-up/break timer (`aux`) is deliberately **not** an entry in the `clocks` map: it has no side, `playClock()`'s "pause the other side" logic assumes exactly two, and the 60-second cue in `tick()` would fire the instant a 1:00 break started. It has its own `tickAux()`, called from `tick()`. Its warning threshold is per-use: `startAux(..., warnMs)` — the Break passes 15 s, everything else defaults to 30 s.
+
+An expired player clock flashes for `EXPIRED_FLASH_MS` (5 s, stamped in `expiredAt`) and then sits steady at 0:00; `tick()` keeps rendering a stopped clock while its `expired` class is still on so the flash can end without the clock running.
 
 ### `pauseClock(side, countBall)` — the subtlest invariant
 
@@ -65,6 +67,14 @@ Two rules that are easy to break:
 - **`autoTiebreak()` must be called wherever the end number changes** (`endplus`, `endminus`, `saveEnd`, `resetends`). It ticks the box on ends 5 and 7; a manual override stands until the end changes again.
 
 Manual `.scorebtn` +/− adjust totals without touching `ends`, so they remain the operator's escape hatch — the final card's totals row reads `state.red`/`state.blue`, not a sum of `ends`.
+
+### Display mode (`?display`)
+
+For extended-display setups: the plain URL is the **controller** (full UI, on the laptop) and `bocciatimer.html?display` is a **passive mirror** for the TV, opened via the "Open TV display" button. The controller owns everything — the display never runs logic, never writes `localStorage` (`persistMatch()` and the name/gametime writes are `DISPLAY`-guarded) and never plays audio (all cues route through `cue()`, which is silent when `DISPLAY`).
+
+Sync is one-way snapshots: `broadcastState()` runs from `tick()`, serialises the full picture (`buildSnapshot()`) and sends **only when the JSON differs from the last send** — clocks store a fixed `deadline` while running, so the snapshot is stable between real events and the mirror ticks smoothly on its own local `tick()`. Transport is `BroadcastChannel('boccia')` plus `localStorage['boccia.sync']` as a storage-event fallback for `file://` and as the freshly-opened display's initial state; `loadMatch()` must never read `boccia.sync`. A new display posts `'hello'`, which the controller answers by clearing `lastSnap` so the next tick resends.
+
+Anything new that the screen can show must be added to `buildSnapshot()` *and* `applySnapshot()`, or the TV will silently not show it. The display renders through the same functions as the controller (`renderClock`, `renderScores`, `renderBalls`, `renderFinal`, ...) — keep it that way rather than duplicating render code, and keep `renderFinal()` free of side effects (`openFinal()` = pause + `renderFinal()` + show) since the display calls it from a snapshot.
 
 ### Presentation mode
 

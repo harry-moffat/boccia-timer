@@ -286,6 +286,13 @@
     white-space: nowrap;
   }
 
+  /* ---------- Display mode (?display): passive TV mirror ---------- */
+  /* Everything is driven by snapshots from the controller window, so no
+     element may react to the local mouse; the operator's buttons are dead
+     weight here and are removed outright. */
+  body.display #app, body.display .overlay { pointer-events: none; }
+  body.display #matchbtns, body.display #showctl { display: none; }
+
   /* ---------- Overlays ---------- */
   .overlay {
     position: fixed;
@@ -415,6 +422,7 @@
     <button id="resetends">Reset Ends</button>
     <button id="resetall">Reset All</button>
     <button id="newend">New End</button>
+    <button id="opendisplay">Open TV display</button>
     <span class="spacer"></span>
     <span id="hint">R/B = clocks · F = fullscreen · H = hide controls</span>
     <button id="fsbtn">Fullscreen</button>
@@ -531,9 +539,20 @@
 const BALLS_PER_SIDE = 6;
 const $ = id => document.getElementById(id);
 
+// ?display = passive TV mirror: renders snapshots broadcast by the controller
+// window, plays no audio and never writes localStorage.
+const DISPLAY = new URLSearchParams(location.search).has('display');
+
 const beep1min = new Audio('1minute.wav');
 const beep30s  = new Audio('30seconds.wav');
 const alarm    = new Audio('timeup.wav');
+
+// All cues route through here so the display window stays silent — the
+// controller already plays them and macOS sends audio to the selected output
+// device regardless of which window triggered it.
+function cue(sound) {
+  if (!DISPLAY) sound.play().catch(() => {});
+}
 
 /* ================= Clocks ================= */
 
@@ -546,6 +565,7 @@ function makeClock(side, el) {
     fired60: false,
     fired30: false,
     expired: false,
+    expiredAt: 0,         // Date.now() when it hit zero; the flash is time-capped
   };
 }
 const clocks = {
@@ -569,11 +589,14 @@ function fmt(ms) {
   return m + ':' + String(s).padStart(2, '0');
 }
 
+const EXPIRED_FLASH_MS = 5000;
+
 function renderClock(c) {
   const ms = clockRemaining(c);
   c.el.textContent = fmt(ms);
   c.el.classList.toggle('warning', ms > 0 && ms <= 30000);
-  c.el.classList.toggle('expired', c.expired);
+  // flash only briefly after expiry, then sit steady at 0:00
+  c.el.classList.toggle('expired', c.expired && Date.now() - c.expiredAt < EXPIRED_FLASH_MS);
 }
 
 function setActivePanels() {
@@ -622,7 +645,7 @@ function adjustClock(side, ms) {
   if (c.running) c.deadline = Date.now() + next;
   if (next > 60000) c.fired60 = false;
   if (next > 30000) c.fired30 = false;
-  if (next > 0) c.expired = false;
+  if (next > 0) { c.expired = false; c.expiredAt = 0; }
   renderClock(c);
 }
 
@@ -632,28 +655,35 @@ function resetClocks() {
     c.running = false;
     c.remaining = t;
     c.fired60 = c.fired30 = c.expired = false;
+    c.expiredAt = 0;
     renderClock(c);
   }
   setActivePanels();
-  localStorage.setItem('boccia.gametime', $('gametime').value);
+  if (!DISPLAY) localStorage.setItem('boccia.gametime', $('gametime').value);
 }
 
 function tick() {
   for (const c of Object.values(clocks)) {
-    if (!c.running) continue;
+    if (!c.running) {
+      // a stopped clock still needs renders until its capped expiry flash ends
+      if (c.expired && c.el.classList.contains('expired')) renderClock(c);
+      continue;
+    }
     const ms = clockRemaining(c);
-    if (ms <= 60000 && !c.fired60) { c.fired60 = true; if (ms > 55000) beep1min.play().catch(()=>{}); }
-    if (ms <= 30000 && !c.fired30) { c.fired30 = true; if (ms > 25000) beep30s.play().catch(()=>{}); }
+    if (ms <= 60000 && !c.fired60) { c.fired60 = true; if (ms > 55000) cue(beep1min); }
+    if (ms <= 30000 && !c.fired30) { c.fired30 = true; if (ms > 25000) cue(beep30s); }
     if (ms === 0 && !c.expired) {
       c.expired = true;
+      c.expiredAt = Date.now();
       c.running = false;
       c.remaining = 0;
-      alarm.play().catch(()=>{});
+      cue(alarm);
       setActivePanels();
     }
     renderClock(c);
   }
   tickAux();
+  if (!DISPLAY) broadcastState();
 }
 setInterval(tick, 100);
 
@@ -661,24 +691,27 @@ setInterval(tick, 100);
 
 // Kept out of the clocks map: it has no side, and the 60s cue in tick() would
 // fire the instant a 1:00 break started.
-const aux = { running: false, deadline: 0, fired60: false, fired30: false, hideTimer: 0 };
+const aux = { running: false, deadline: 0, fired60: false, fired30: false, warnMs: 30000, hideTimer: 0 };
 
 function renderAux(ms) {
   const el = $('auxtime');
   el.textContent = fmt(ms);
-  el.classList.toggle('warning', ms > 0 && ms <= 30000);
+  el.classList.toggle('warning', ms > 0 && ms <= aux.warnMs);
 }
 
 // showScore: the between-ends break shows the running score; a warm-up is always
 // 0-0, so it shows the countdown alone.
-function startAux(label, ms, showScore = false) {
+// warnMs: when the countdown turns yellow and the late cue fires — the short
+// break warns at 15s rather than the standard 30s.
+function startAux(label, ms, showScore = false, warnMs = 30000) {
   pauseClock('red');
   pauseClock('blue');
   clearTimeout(aux.hideTimer);
   aux.running = true;
   aux.deadline = Date.now() + ms;
+  aux.warnMs = warnMs;
   aux.fired60 = ms <= 65000;   // a 1:00 break must not beep at the starting gun
-  aux.fired30 = false;
+  aux.fired30 = ms <= warnMs + 5000;
   $('auxlabel').textContent = label;
   $('auxred').textContent = state.red;
   $('auxblue').textContent = state.blue;
@@ -697,11 +730,11 @@ function cancelAux() {
 function tickAux() {
   if (!aux.running) return;
   const ms = Math.max(0, aux.deadline - Date.now());
-  if (ms <= 60000 && !aux.fired60) { aux.fired60 = true; if (ms > 55000) beep1min.play().catch(()=>{}); }
-  if (ms <= 30000 && !aux.fired30) { aux.fired30 = true; if (ms > 25000) beep30s.play().catch(()=>{}); }
+  if (ms <= 60000 && !aux.fired60) { aux.fired60 = true; if (ms > 55000) cue(beep1min); }
+  if (ms <= aux.warnMs && !aux.fired30) { aux.fired30 = true; if (ms > aux.warnMs - 5000) cue(beep30s); }
   if (ms === 0) {
     aux.running = false;
-    alarm.play().catch(()=>{});
+    cue(alarm);
     $('auxtime').classList.add('expired');
     aux.hideTimer = setTimeout(cancelAux, 4000);
   }
@@ -709,7 +742,7 @@ function tickAux() {
 }
 
 $('warmupbtn').addEventListener('click', () => startAux('WARM-UP', 120000));
-$('breakbtn').addEventListener('click', () => startAux('BREAK', 60000, true));
+$('breakbtn').addEventListener('click', () => startAux('BREAK', 60000, true, 15000));
 $('auxoverlay').addEventListener('click', cancelAux);
 
 /* ================= Scores & ends ================= */
@@ -717,6 +750,7 @@ $('auxoverlay').addEventListener('click', cancelAux);
 const state = { red: 0, blue: 0, end: 1, ends: [], tb: false };
 
 function persistMatch() {
+  if (DISPLAY) return;   // the mirror must never clobber the real match record
   localStorage.setItem('boccia.match', JSON.stringify({
     red: state.red, blue: state.blue, end: state.end, ends: state.ends, tb: state.tb,
   }));
@@ -865,6 +899,13 @@ function openFinal() {
   pauseClock('blue');
   cancelAux();
   $('endoverlay').classList.remove('show');
+  renderFinal();
+  $('finaloverlay').classList.add('show');
+}
+
+// DOM-building only, no side effects on clocks/overlays — the display window
+// renders the final card from a snapshot without pausing anything.
+function renderFinal() {
   const rn = playerName('red'), bn = playerName('blue');
 
   const span = (text, cls) => {
@@ -935,7 +976,6 @@ function openFinal() {
     const rc = tot.insertCell(); rc.textContent = state.red;  rc.className = 'rside';
     const bc = tot.insertCell(); bc.textContent = state.blue; bc.className = 'bside';
   }
-  $('finaloverlay').classList.add('show');
 }
 
 $('matchcomplete').addEventListener('click', openFinal);
@@ -1028,15 +1068,16 @@ $('redclock').addEventListener('click', () => toggleClock('red'));
 $('blueclock').addEventListener('click', () => toggleClock('blue'));
 $('resettimes').addEventListener('click', resetClocks);
 $('gametime').addEventListener('keyup', e => { if (e.key === 'Enter') resetClocks(); });
-$('gametime').addEventListener('change', () =>
-  localStorage.setItem('boccia.gametime', $('gametime').value));
+$('gametime').addEventListener('change', () => {
+  if (!DISPLAY) localStorage.setItem('boccia.gametime', $('gametime').value);
+});
 
 /* ================= Names / countries persistence ================= */
 
 for (const id of ['redname', 'redcountry', 'bluename', 'bluecountry']) {
   const el = $(id);
   el.value = localStorage.getItem('boccia.' + id) || '';
-  el.addEventListener('input', () => localStorage.setItem('boccia.' + id, el.value));
+  el.addEventListener('input', () => { if (!DISPLAY) localStorage.setItem('boccia.' + id, el.value); });
 }
 const savedTime = localStorage.getItem('boccia.gametime');
 if (savedTime) $('gametime').value = savedTime;
@@ -1084,7 +1125,7 @@ $('showctl').addEventListener('click', toggleControls);
 document.addEventListener('fullscreenchange', () => {
   const on = !!document.fullscreenElement;
   $('fsbtn').textContent = on ? 'Exit fullscreen' : 'Fullscreen';
-  showControls(on);
+  showControls(on || DISPLAY);   // the mirror never shows controls
 });
 
 /* ================= Keyboard shortcuts ================= */
@@ -1096,6 +1137,11 @@ function closeOverlays() {
 }
 
 document.addEventListener('keydown', e => {
+  // the mirror only ever needs fullscreen; everything else is operator-side
+  if (DISPLAY) {
+    if (e.key.toLowerCase() === 'f') toggleFullscreen();
+    return;
+  }
   if (e.target.tagName === 'INPUT') return;
   if (e.key === 'Escape') { closeOverlays(); return; }
   // don't let the clock shortcuts fire at whatever is behind an open overlay
@@ -1107,6 +1153,131 @@ document.addEventListener('keydown', e => {
   else if (k === 'h') toggleControls();
 });
 
+/* ================= Controller/display sync ================= */
+
+// The controller window (plain URL) owns all state and broadcasts snapshots;
+// a ?display window is a passive mirror on the TV. Clocks are deadline-based
+// and both windows run on the same machine, so the mirror ticks smoothly on
+// its own between snapshots — messages only flow when something changes.
+// BroadcastChannel is the transport; localStorage['boccia.sync'] doubles as a
+// storage-event fallback for file:// (opaque origins) and gives a freshly
+// opened display its initial state. loadMatch() never reads it.
+
+const syncChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('boccia') : null;
+let lastSnap = '';
+
+function snapClock(c) {
+  return { running: c.running, deadline: c.deadline, remaining: c.remaining,
+           expired: c.expired, expiredAt: c.expiredAt };
+}
+
+function buildSnapshot() {
+  return {
+    clocks: { red: snapClock(clocks.red), blue: snapClock(clocks.blue) },
+    aux: {
+      running: aux.running,
+      deadline: aux.deadline,
+      warnMs: aux.warnMs,
+      label: $('auxlabel').textContent,
+      showScore: !$('auxoverlay').classList.contains('noscore'),
+      shown: $('auxoverlay').classList.contains('show'),
+      expired: $('auxtime').classList.contains('expired'),
+    },
+    state: { red: state.red, blue: state.blue, end: state.end, ends: state.ends, tb: state.tb },
+    throws,
+    jackThrown,
+    names: {
+      redname: $('redname').value, redcountry: $('redcountry').value,
+      bluename: $('bluename').value, bluecountry: $('bluecountry').value,
+    },
+    gametime: $('gametime').value,
+    endOpen: $('endoverlay').classList.contains('show'),
+    endEntry: { red: endEntry.red, blue: endEntry.blue },
+    finalOpen: $('finaloverlay').classList.contains('show'),
+  };
+}
+
+// Called every tick(); the snapshot is stable between real events (running
+// clocks store a fixed deadline), so the compare makes this send-on-change.
+function broadcastState() {
+  const json = JSON.stringify(buildSnapshot());
+  if (json === lastSnap) return;
+  lastSnap = json;
+  if (syncChannel) syncChannel.postMessage(json);
+  try { localStorage.setItem('boccia.sync', json); } catch (e) {}
+}
+
+function applySnapshot(snap) {
+  if (!snap || typeof snap !== 'object') return;
+  for (const side of ['red', 'blue']) {
+    Object.assign(clocks[side], snap.clocks[side]);
+    renderClock(clocks[side]);
+  }
+  setActivePanels();
+
+  aux.running = snap.aux.running;
+  aux.deadline = snap.aux.deadline;
+  aux.warnMs = snap.aux.warnMs;
+  aux.fired60 = aux.fired30 = true;   // mirror never cues; controller does
+
+  state.red = snap.state.red;
+  state.blue = snap.state.blue;
+  state.end = snap.state.end;
+  state.ends = snap.state.ends;
+  state.tb = snap.state.tb;
+  throws = snap.throws.slice();
+  jackThrown = snap.jackThrown;
+  for (const id of ['redname', 'redcountry', 'bluename', 'bluecountry']) {
+    $(id).value = snap.names[id];
+  }
+  $('gametime').value = snap.gametime;
+  renderScores();
+  renderBalls();
+
+  $('auxlabel').textContent = snap.aux.label;
+  $('auxred').textContent = state.red;
+  $('auxblue').textContent = state.blue;
+  $('auxoverlay').classList.toggle('noscore', !snap.aux.showScore);
+  $('auxtime').classList.toggle('expired', snap.aux.expired);
+  renderAux(aux.running ? Math.max(0, aux.deadline - Date.now()) : 0);
+  $('auxoverlay').classList.toggle('show', snap.aux.shown);
+
+  endEntry = { red: snap.endEntry.red, blue: snap.endEntry.blue };
+  $('endtitle').textContent = (state.tb ? 'TB' : 'END ' + state.end) + ' — ENTER SCORE';
+  $('endredname').textContent = playerName('red');
+  $('endbluename').textContent = playerName('blue');
+  renderEndEntry();
+  $('endoverlay').classList.toggle('show', snap.endOpen);
+
+  if (snap.finalOpen) renderFinal();
+  $('finaloverlay').classList.toggle('show', snap.finalOpen);
+}
+
+function tryApply(json) {
+  if (typeof json !== 'string' || json === 'hello') return;
+  try { applySnapshot(JSON.parse(json)); } catch (e) {}
+}
+
+if (DISPLAY) {
+  if (syncChannel) {
+    syncChannel.onmessage = e => tryApply(e.data);
+    syncChannel.postMessage('hello');   // ask the controller for a fresh snapshot
+  }
+  window.addEventListener('storage', e => {
+    if (e.key === 'boccia.sync' && e.newValue) tryApply(e.newValue);
+  });
+} else if (syncChannel) {
+  // a display opened mid-match says hello; clearing lastSnap makes the next
+  // tick (≤100ms away) resend even though nothing changed
+  syncChannel.onmessage = e => { if (e.data === 'hello') lastSnap = ''; };
+}
+
+$('opendisplay').addEventListener('click', () => {
+  // named target: re-clicking focuses the existing display instead of
+  // spawning another; a real window (not a tab) is what gets dragged to the TV
+  window.open(location.pathname + '?display', 'bocciadisplay', 'width=960,height=540');
+});
+
 /* ================= Init ================= */
 
 buildPanelBalls();
@@ -1114,6 +1285,15 @@ renderBalls();
 loadMatch();
 renderScores();
 resetClocks();
+
+if (DISPLAY) {
+  document.body.classList.add('display');
+  showControls(true);
+  // last broadcast snapshot, if any, as the starting picture; the hello
+  // round-trip replaces it with a live one within a tick
+  const saved = localStorage.getItem('boccia.sync');
+  if (saved) tryApply(saved);
+}
 </script>
 </body>
 </html>
