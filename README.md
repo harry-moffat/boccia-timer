@@ -36,6 +36,12 @@ Match state saves into the app's own WebKit storage — separate from every
 browser. A match started in the app won't appear if you open the HTML in
 Chrome or Safari, and vice versa.
 
+**Open TV display** opens the scoreboard mirror as a second app window, to drag
+onto a TV running as an extended display. That needs a binary built from
+`launcher.swift` at or after the commit that added its `WKUIDelegate`; on an
+older build the button relabels itself to *Use a browser for TV* instead of
+opening anything. Rebuild with the command below to get it.
+
 To pin it: drag `BocciaTimer.app` onto the Dock. If you later move the folder,
 the existing Dock tile still points at the old location — drag it in again from
 the new one.

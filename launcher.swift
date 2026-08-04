@@ -18,9 +18,12 @@
 import Cocoa
 import WebKit
 
-final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKUIDelegate {
     var window: NSWindow!
     var webView: WKWebView!
+    // second window for the TV mirror, opened by the page's window.open()
+    var displayWindow: NSWindow?
+    var displayWebView: WKWebView?
     let probeMode = CommandLine.arguments.contains("--probe")
 
     func timerURL() -> URL {
@@ -49,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
 
         webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = self
+        webView.uiDelegate = self          // without this, window.open() is ignored
 
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 800),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -75,6 +79,61 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    // ---- TV display window ----
+    // The page's "Open TV display" button calls window.open(); WebKit routes it
+    // here. Without a WKUIDelegate the call is silently dropped, so the button
+    // does nothing — see the display-mode notes in CLAUDE.md.
+    func webView(_ webView: WKWebView,
+                 createWebViewWith configuration: WKWebViewConfiguration,
+                 for navigationAction: WKNavigationAction,
+                 windowFeatures: WKWindowFeatures) -> WKWebView? {
+        // Always hand back a fresh window: the page treats a null return as
+        // "this build can't open one" and says so on the button, so re-clicking
+        // must never come back empty.
+        closeDisplayWindow()
+
+        // WebKit requires the configuration it supplied, not a new one. It
+        // carries the parent's audio and element-fullscreen settings.
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.navigationDelegate = self
+        view.uiDelegate = self
+
+        let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 720),
+                           styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                           backing: .buffered, defer: false)
+        win.isReleasedWhenClosed = false
+        win.title = "BocciaTimer — TV Display"
+        win.minSize = NSSize(width: 640, height: 400)
+        win.collectionBehavior.insert(.fullScreenPrimary)   // so it can fill the TV
+        win.contentView = view
+        if !win.setFrameUsingName("BocciaTimerDisplay") { win.center() }
+        win.setFrameAutosaveName("BocciaTimerDisplay")      // its own frame, not the main window's
+        win.makeKeyAndOrderFront(nil)
+
+        displayWindow = win
+        displayWebView = view
+
+        // WebKit's own navigation into a returned view does not inherit the
+        // parent's file-read grant, so a file:// mirror would fail to load.
+        // Re-issue it with read access to the folder.
+        if let url = navigationAction.request.url, url.isFileURL {
+            DispatchQueue.main.async {
+                view.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+            }
+        }
+        return view
+    }
+
+    func webViewDidClose(_ webView: WKWebView) {
+        if webView === displayWebView { closeDisplayWindow() }
+    }
+
+    private func closeDisplayWindow() {
+        displayWindow?.close()
+        displayWindow = nil
+        displayWebView = nil
+    }
 
     @objc func doReload(_ sender: Any?) { webView.reload() }
 

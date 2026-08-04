@@ -539,9 +539,11 @@
 const BALLS_PER_SIDE = 6;
 const $ = id => document.getElementById(id);
 
-// ?display = passive TV mirror: renders snapshots broadcast by the controller
-// window, plays no audio and never writes localStorage.
-const DISPLAY = new URLSearchParams(location.search).has('display');
+// ?display / #display = passive TV mirror: renders snapshots broadcast by the
+// controller window, plays no audio and never writes localStorage. The hash
+// form is what the button opens — a query string is unreliable on a file:// URL,
+// where it can be read as part of the filename.
+const DISPLAY = /display/.test(location.search) || /display/.test(location.hash);
 
 const beep1min = new Audio('1minute.wav');
 const beep30s  = new Audio('30seconds.wav');
@@ -683,7 +685,8 @@ function tick() {
     renderClock(c);
   }
   tickAux();
-  if (!DISPLAY) broadcastState();
+  if (DISPLAY) pollSync();
+  else broadcastState();
 }
 setInterval(tick, 100);
 
@@ -1266,9 +1269,22 @@ function applySnapshot(snap) {
   $('finaloverlay').classList.toggle('show', snap.finalOpen);
 }
 
+let lastApplied = '';
+
 function tryApply(json) {
-  if (typeof json !== 'string' || json === 'hello') return;
+  if (typeof json !== 'string' || json === 'hello' || json === lastApplied) return;
+  lastApplied = json;
   try { applySnapshot(JSON.parse(json)); } catch (e) {}
+}
+
+// Belt and braces for the Dock app: two file:// WebKit views share localStorage
+// but may share neither a BroadcastChannel (opaque origins) nor storage events,
+// which would leave the mirror open but frozen. Re-reading the last snapshot
+// each tick costs nothing and makes sync independent of both.
+function pollSync() {
+  let json;
+  try { json = localStorage.getItem('boccia.sync'); } catch (e) { return; }
+  if (json) tryApply(json);
 }
 
 if (DISPLAY) {
@@ -1285,10 +1301,22 @@ if (DISPLAY) {
   syncChannel.onmessage = e => { if (e.data === 'hello') lastSnap = ''; };
 }
 
+let displayWin = null;
+
 $('opendisplay').addEventListener('click', () => {
-  // named target: re-clicking focuses the existing display instead of
-  // spawning another; a real window (not a tab) is what gets dragged to the TV
-  window.open(location.pathname + '?display', 'bocciadisplay', 'width=960,height=540');
+  // re-clicking focuses the display already open rather than spawning another
+  if (displayWin && !displayWin.closed) { displayWin.focus(); return; }
+  const url = location.href.split('#')[0].split('?')[0] + '#display';
+  // a real window (not a tab) is what gets dragged to the TV
+  try { displayWin = window.open(url, 'bocciadisplay', 'width=960,height=540'); }
+  catch (e) { displayWin = null; }
+  // A Dock app built before the launcher learned to open windows (or a browser
+  // blocking popups) drops the call silently; say so rather than look broken.
+  if (!displayWin) {
+    const b = $('opendisplay');
+    b.textContent = 'Use a browser for TV';
+    setTimeout(() => { b.textContent = 'Open TV display'; }, 5000);
+  }
 });
 
 /* ================= Init ================= */
