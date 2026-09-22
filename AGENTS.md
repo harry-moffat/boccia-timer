@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project shape
 
-One file, `bocciatimer.html` (~1090 lines): inline `<style>`, inline `<script>` (`"use strict"`, vanilla ES6), no framework, no build step, no dependencies, no tests. The only external assets are `1minute.wav`, `30seconds.wav` and `timeup.wav`, loaded by relative path, plus the favicons (`favicon-16.png`, `favicon-32.png`, `apple-touch-icon.png`) — cosmetic only, the page works without them. Keep it that way — "self-contained" is the point, since this runs from a laptop at competition venues.
+One file, `bocciatimer.html` (~1090 lines): inline `<style>`, inline `<script>` (`"use strict"`, vanilla ES6), no framework, no build step, no dependencies, no tests. The only runtime companions are `1minute.wav`, `30seconds.wav` and `timeup.wav`, loaded by relative path, the icons, `manifest.webmanifest`, and `service-worker.js`. Keep it dependency-free — offline operation at competition venues is the point.
+
+The hosted build is deployed to GitHub Pages by `.github/workflows/pages.yml`. It copies an explicit allowlist into a temporary site artifact and maps `bocciatimer.html` to `index.html`; do not introduce a second editable copy of the timer. Every push to `main` deploys. The service worker is network-first with cached fallback so a reopened online app gets current files, while an open match is never forcibly refreshed.
 
 `logo.svg` is the master artwork; every PNG in the folder is rendered from it (see README).
 
@@ -50,8 +52,6 @@ Stopping a clock is how a throw gets counted, so every call site must classify i
 - **Administrative pauses** leave it `false` — `startAux`, `openEndEntry`, `openFinal`. Warm-up or opening a dialog must never record a phantom throw. `saveEnd()` auto-starts the between-ends break (`startBreak()`), which is such a pause.
 
 New code that pauses a clock has to make this choice deliberately.
-
-Layered on top: the first counted throw of an end is the **jack** and is skipped (`jackThrown`), except in a tiebreak end, where the jack starts on the cross and `state.tb` suppresses the skip.
 
 ### Match state
 

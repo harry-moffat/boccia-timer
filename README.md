@@ -3,6 +3,21 @@
 Match timer and scoreboard for boccia, designed to be mirrored to a TV during
 live matches. Single self-contained HTML file — no build step, no dependencies.
 
+## Use the hosted timer
+
+Open **https://harry-moffat.github.io/boccia-timer/**. The same link works on
+Mac, Windows, iPad, iPhone and Android, and can be forwarded to other coaches.
+After the first successful online visit, the timer is cached for offline use.
+Use the browser's **Add to Home Screen** or **Install app** command for an
+app-like shortcut.
+
+A ready-to-share QR code is available in `BocciaTimer-share-QR.png`.
+
+The hosted timer is deployed automatically whenever a commit is pushed to
+`main`. A timer that is already open is never reloaded during a match. Close and
+reopen it while online to receive the newest deployed version; if the device is
+offline, it continues using the last cached version.
+
 ## Running it
 
 Open `bocciatimer.html` in a browser, or serve the folder:
@@ -105,14 +120,13 @@ then `sips -z <size> <size>` for each size, and `iconutil -c icns` over an
 | **Reset All** | Click twice: full new match — clocks, scores, end number, throw dots |
 
 Starting a player's clock pauses the other side, and stopping a clock counts
-that side's ball automatically. The first throw of each end is the jack and is
-not counted.
+that side's ball automatically, including the first completed clock run of an
+end.
 
 ## Tiebreak ends
 
 The **Tiebreak** checkbox ticks itself on ends 5 and 7 and can be overridden by
-hand. In a tiebreak end the jack starts on the cross, so no jack throw is
-skipped, and the end's points do not count toward the match score — it only
+hand. A tiebreak end's points do not count toward the match score — it only
 decides the winner, shown as a bullet on the final card.
 
 ## State

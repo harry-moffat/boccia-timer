@@ -8,7 +8,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Boccia Match Timer</title>
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -618,19 +622,13 @@ function playClock(side) {
 
 // countBall: a throw-flow pause (R/B, Play/Pause, or the other side starting)
 // records the throw; administrative pauses (warm-up, end entry, ...) must not.
-// The first throw of each end is the jack, which is not one of the 6 balls.
-let jackThrown = false;
 
 function pauseClock(side, countBall = false) {
   const c = clocks[side];
   if (c.running) {
     c.remaining = Math.max(0, c.deadline - Date.now());
     c.running = false;
-    // In a tiebreak the jack starts on the cross, so there is no jack throw to skip.
-    if (countBall) {
-      if (jackThrown || state.tb) throwBall(side);
-      else jackThrown = true;
-    }
+    if (countBall) throwBall(side);
   }
   setActivePanels();
 }
@@ -1061,7 +1059,6 @@ function undoThrow() {
 
 function newEnd() {
   throws = [];
-  jackThrown = false;
   renderBalls();
 }
 
@@ -1201,7 +1198,6 @@ function buildSnapshot() {
     },
     state: { red: state.red, blue: state.blue, end: state.end, ends: state.ends, tb: state.tb },
     throws,
-    jackThrown,
     names: {
       redname: $('redname').value, redcountry: $('redcountry').value,
       bluename: $('bluename').value, bluecountry: $('bluecountry').value,
@@ -1242,7 +1238,6 @@ function applySnapshot(snap) {
   state.ends = snap.state.ends;
   state.tb = snap.state.tb;
   throws = snap.throws.slice();
-  jackThrown = snap.jackThrown;
   for (const id of ['redname', 'redcountry', 'bluename', 'bluecountry']) {
     $(id).value = snap.names[id];
   }
@@ -1326,6 +1321,15 @@ renderBalls();
 loadMatch();
 renderScores();
 resetClocks();
+
+// The hosted version is an installable offline app. Updates are deliberately
+// not forced into an open match: the browser activates them after every timer
+// window has been closed, and the next online launch fetches current files.
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+  });
+}
 
 if (DISPLAY) {
   document.body.classList.add('display');
