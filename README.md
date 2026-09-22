@@ -1,22 +1,33 @@
 # Boccia Match Timer
 
 Match timer and scoreboard for boccia, designed to be mirrored to a TV during
-live matches. Single self-contained HTML file — no build step, no dependencies.
+live matches. It is a dependency-free static web app: the interface lives in
+one HTML file, with local audio, icons and offline-app support alongside it.
+There is no package install or application build step.
 
 ## Use the hosted timer
 
-Open **https://harry-moffat.github.io/boccia-timer/**. The same link works on
-Mac, Windows, iPad, iPhone and Android, and can be forwarded to other coaches.
-After the first successful online visit, the timer is cached for offline use.
-Use the browser's **Add to Home Screen** or **Install app** command for an
-app-like shortcut.
+Open the **[hosted Boccia Match Timer](https://harry-moffat.github.io/boccia-timer/)**.
+This is the recommended way to use and share the timer. The same link works on
+Mac, Windows, iPad, iPhone and Android. After the first successful online
+visit, the timer is cached for offline use.
 
-A ready-to-share QR code is available in `BocciaTimer-share-QR.png`.
+- On iPhone or iPad, open the link in Safari and choose **Share → Add to Home
+  Screen**.
+- In Chrome or Edge, use **Install app** from the address bar or browser menu.
+- Installation is optional; the timer also works as a normal browser page.
+
+[Download the ready-to-share QR code](BocciaTimer-share-QR.png).
+
+The **Open TV display** button opens a passive scoreboard window to drag onto an
+extended display. Allow the popup if the browser asks. The controller and TV
+window must be in the same browser on the same device.
 
 The hosted timer is deployed automatically whenever a commit is pushed to
-`main`. A timer that is already open is never reloaded during a match. Close and
-reopen it while online to receive the newest deployed version; if the device is
-offline, it continues using the last cached version.
+`main`. Saving a local file alone does not publish it. A timer that is already
+open is never reloaded during a match. Close and reopen it while online to get
+the newest deployed version; while offline, it continues using the last cached
+version.
 
 ## Running it
 
@@ -27,16 +38,33 @@ python3 -m http.server 8777
 ```
 
 then visit http://localhost:8777/bocciatimer.html. The three `.wav` files must
-sit alongside the HTML for the audio cues to play.
+sit alongside the HTML for the audio cues to play. `manifest.webmanifest` and
+`service-worker.js` provide installation and offline caching. Opening the HTML
+directly with `file://` still runs the timer, but install/offline support needs
+HTTP or HTTPS.
 
 Press **F** for fullscreen, which also switches to presentation mode (setup
 controls hidden). **H** toggles the controls on their own; the gear in the top
 right brings them back.
 
-### From the Dock (macOS)
+## Publishing updates
+
+GitHub Actions deploys `.github/workflows/pages.yml` on every push to `main`.
+The workflow copies an explicit set of timer assets into the Pages artifact and
+publishes `bocciatimer.html` as the site's root `index.html`.
+
+To publish a change:
+
+1. Test and commit it locally.
+2. Push the commit to `main`.
+3. Confirm the **Deploy to GitHub Pages** workflow succeeds in GitHub Actions.
+
+The public URL stays the same across releases.
+
+## From the Dock (macOS)
 
 `BocciaTimer.app` in this folder is a small native app (source:
-`launcher.swift`, ~190 KB universal binary, committed to the repo) that shows
+`launcher.swift`, universal binary committed to the repo) that shows
 `bocciatimer.html` in its own window using macOS's built-in WebKit engine. No
 browser is involved: it appears in Cmd-Tab and the Dock as **BocciaTimer**
 with its own icon, Cmd-Q quits it, Cmd-R reloads, and ⌃⌘F (or the page's
@@ -61,10 +89,10 @@ To pin it: drag `BocciaTimer.app` onto the Dock. If you later move the folder,
 the existing Dock tile still points at the old location — drag it in again from
 the new one.
 
-Note for other machines: `git clone` leaves the bundle runnable, but a ZIP
-downloaded from GitHub gets quarantined and Gatekeeper will refuse to open an
-unsigned app. Clone the repo rather than downloading it, or clear the flag with
-`xattr -dr com.apple.quarantine BocciaTimer.app`.
+The bundle is ad-hoc signed for local use, not notarized for public Mac
+distribution. macOS may block a ZIP downloaded from GitHub. Share the hosted
+web link with coaches; developers who need this launcher should clone the
+repository.
 
 After editing `launcher.swift`, rebuild the binary into the bundle:
 
@@ -133,6 +161,10 @@ decides the winner, shown as a bullet on the final card.
 
 Player names, countries, game time and the current match (scores, end number,
 per-end history) persist in `localStorage`, so a refresh mid-match is safe.
+This data stays in that browser or app profile; it is not uploaded or shared
+between devices. Clearing browser site data removes both saved match data and
+the offline copy.
+
 **Reset All** (click twice — the first click arms it) starts a new match:
 clocks back to full time, scores, end number and throw dots cleared. The
 individual **Reset Times / Scores / Ends** buttons reset just their own piece.
